@@ -100,7 +100,7 @@ export const RevenueAnalytics: React.FC<RevenueAnalyticsProps> = ({ stats }) => 
                 <YAxis stroke="#64748b" fontSize={11} tickFormatter={(val) => `₹${val / 1000}k`} />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', fontSize: '12px' }}
-                  formatter={(val: any) => [`₹${Number(val || 0).toLocaleString()}`, 'Gross Fare']}
+                  formatter={(val) => [`₹${Number(val || 0).toLocaleString()}`, 'Gross Fare']}
                 />
                 <Area type="monotone" dataKey="gross" stroke="#10b981" strokeWidth={2} fill="url(#grossGradient)" />
               </AreaChart>
@@ -120,7 +120,7 @@ export const RevenueAnalytics: React.FC<RevenueAnalyticsProps> = ({ stats }) => 
                 <YAxis stroke="#64748b" fontSize={11} tickFormatter={(val) => `₹${val / 1000}k`} />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', fontSize: '12px' }}
-                  formatter={(val: any) => [`₹${Number(val || 0).toLocaleString()}`]}
+                  formatter={(val) => [`₹${Number(val || 0).toLocaleString()}`]}
                 />
                 <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
                 <Bar dataKey="driverPayout" name="Driver (80%)" fill="#3b82f6" radius={[4, 4, 0, 0]} />

@@ -1,7 +1,6 @@
 // mobile/src/api/client.ts
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
 import type {
   User,
   AuthResponse,
@@ -14,24 +13,8 @@ import type {
   UserProfileResponse,
 } from '../types';
 
-// 1. Dynamic IP Resolution for Mobile Environments
-// - Physical phone over Wi-Fi: Replace with your computer's Wi-Fi IP (e.g. 192.168.1.35)
-// - Android Studio Emulator: 10.0.2.2 maps to host machine localhost
-// - iOS Simulator: localhost maps to host machine localhost
-const DEV_MACHINE_IP = '192.168.1.34'; // 👈 Your host IP on Wi-Fi
-
 export const getBaseUrl = (): string => {
-  if (Platform.OS === 'android') {
-    // If testing on a physical Android phone over Wi-Fi, use DEV_MACHINE_IP
-    // If testing on an Android Emulator, 10.0.2.2 is the default bridge
-    return `http://${DEV_MACHINE_IP}:8080/api`;
-  }
-  if (Platform.OS === 'ios') {
-    // If testing on a physical iPhone over Wi-Fi, use DEV_MACHINE_IP
-    return `http://${DEV_MACHINE_IP}:8080/api`;
-  }
-  // Web fallback
-  return 'http://localhost:8080/api';
+  return 'https://rideflow-production-06dc.up.railway.app/api';
 };
 
 export const apiClient = axios.create({

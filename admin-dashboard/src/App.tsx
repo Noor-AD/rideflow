@@ -177,6 +177,7 @@ export const App: React.FC = () => {
     if (!isAuthenticated) return;
 
     // Initial HTTP fetch
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadDashboardData();
 
     // Connect to WebSocket STOMP broker

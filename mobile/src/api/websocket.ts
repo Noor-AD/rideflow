@@ -2,23 +2,12 @@
 import 'text-encoding'; // 👈 Polyfills TextEncoder/TextDecoder for React Native
 import { Client, IMessage } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
-import { Platform } from 'react-native';
 import type { DriverLocationPayload, RideEventPayload, ChatMessage } from '../types';
 
 export type ConnectionStatus = 'CONNECTING' | 'CONNECTED' | 'DISCONNECTED' | 'ERROR';
 
-// 1. Mobile Host Resolution
-// Physical phone uses your Wi-Fi IP; Android Emulator uses 10.0.2.2; iOS Simulator uses localhost
-const DEV_MACHINE_IP = '192.168.1.34';
-
 const getWebSocketUrl = (): string => {
-  if (Platform.OS === 'android') {
-    return `http://${DEV_MACHINE_IP}:8080/ws`;
-  }
-  if (Platform.OS === 'ios') {
-    return `http://${DEV_MACHINE_IP}:8080/ws`;
-  }
-  return 'http://localhost:8080/ws';
+  return 'https://rideflow-production-06dc.up.railway.app/ws';
 };
 
 class MobileWebSocketService {

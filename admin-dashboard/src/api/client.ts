@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { DriverProfile, Ride, DashboardStats, AuthResponse } from '../types';
 
-const API_BASE_URL = 'http://localhost:8080/api';
+const API_BASE_URL = 'https://rideflow-production-06dc.up.railway.app/api';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,

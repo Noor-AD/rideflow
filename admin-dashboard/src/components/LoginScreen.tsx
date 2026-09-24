@@ -47,9 +47,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       );
 
       onLoginSuccess(auth);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Login failure:', err);
-      const serverMsg = err.response?.data?.message || err.response?.data?.error;
+      const errorObj = err as { response?: { data?: { message?: string; error?: string } } };
+      const serverMsg = errorObj.response?.data?.message || errorObj.response?.data?.error;
       setErrorMessage(
         serverMsg || 'Authentication failed. Please verify your email and password.'
       );

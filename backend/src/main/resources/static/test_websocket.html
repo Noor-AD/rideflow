@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>RideFlow - Real-Time WebSocket Tester</title>
+    <!-- SockJS & STOMP.js from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; padding: 20px; }
+        .card { background: #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.5); }
+        h1 { color: #38bdf8; margin-top: 0; }
+        input, button { padding: 10px 16px; border-radius: 6px; font-size: 14px; margin: 4px; }
+        input { background: #334155; border: 1px solid #475569; color: white; width: 120px; }
+        button { background: #38bdf8; color: #0f172a; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #0284c7; color: white; }
+        .btn-stream { background: #22c55e; color: black; }
+        .btn-stream:hover { background: #16a34a; color: white; }
+        .btn-disconnect { background: #ef4444; color: white; }
+        #logs { background: #090d16; border: 1px solid #334155; border-radius: 8px; padding: 12px; height: 350px; overflow-y: auto; font-family: monospace; font-size: 13px; }
+        .log-entry { margin-bottom: 6px; padding: 4px 8px; border-radius: 4px; }
+        .log-event { background: rgba(56, 189, 248, 0.15); border-left: 3px solid #38bdf8; }
+        .log-loc { background: rgba(34, 197, 94, 0.15); border-left: 3px solid #22c55e; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; }
+        .badge-online { background: #22c55e; color: black; }
+        .badge-offline { background: #ef4444; color: white; }
+    </style>
+</head>
+<body>
+
+    <h1>⚡ RideFlow Live STOMP WebSocket Tester</h1>
+
+    <div class="card">
+        <h3>1. Connection & Subscription</h3>
+        Status: <span id="status" class="badge badge-offline">DISCONNECTED</span>
+        <br><br>
+        <button onclick="connect()">Connect to ws://localhost:8080/ws</button>
+        <button class="btn-disconnect" onclick="disconnect()">Disconnect</button>
+        <br><br>
+        <label>Ride ID to Monitor: </label>
+        <input type="number" id="rideId" value="1" />
+        <button onclick="subscribeToRide()">Subscribe to /topic/rides/{id}</button>
+    </div>
+
+    <div class="card">
+        <h3>2. Simulate Driver GPS Stream (Driver Phone -> WebSocket -> Rider Phone)</h3>
+        <p style="color: #94a3b8; font-size: 13px;">Click this button to send GPS coordinates to <code>/app/rides/{rideId}/location</code> and watch it bounce back instantly to <code>/topic/rides/{rideId}/location</code>!</p>
+        <button class="btn-stream" onclick="sendDriverLocation()">📍 Stream Driver GPS Position</button>
+    </div>
+
+    <div class="card">
+        <h3>3. Live Event Stream Output</h3>
+        <div id="logs"></div>
+    </div>
+
+    <script>
+        let stompClient = null;
+        let rideSub = null;
+        let locationSub = null;
+        let simulatedLat = 28.6139;
+        let simulatedLng = 77.2090;
+
+        function log(msg, type = '') {
+            const logsDiv = document.getElementById('logs');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `<span style="color:#64748b;">[${new Date().toLocaleTimeString()}]</span> ${msg}`;
+            logsDiv.prepend(entry);
+        }
+
+        function connect() {
+            log("Connecting to WebSocket endpoint: http://localhost:8080/ws ...");
+            const socket = new SockJS('http://localhost:8080/ws');
+            stompClient = Stomp.over(socket);
+
+            stompClient.connect({}, function (frame) {
+                document.getElementById('status').innerText = "CONNECTED";
+                document.getElementById('status').className = "badge badge-online";
+                log(" Connected successfully to Spring Boot STOMP Broker!", "log-event");
+                subscribeToRide();
+            }, function (error) {
+                log("❌ Connection error: " + error, "log-event");
+            });
+        }
+
+        function disconnect() {
+            if (stompClient !== null) {
+                stompClient.disconnect();
+            }
+            document.getElementById('status').innerText = "DISCONNECTED";
+            document.getElementById('status').className = "badge badge-offline";
+            log("🔌 Disconnected from WebSocket.", "log-event");
+        }
+
+        function subscribeToRide() {
+            const rideId = document.getElementById('rideId').value;
+            if (!stompClient || !stompClient.connected) {
+                alert("Please connect first!");
+                return;
+            }
+
+            // 1. Subscribe to Ride Lifecycle Events (RIDE_ACCEPTED, DRIVER_ARRIVED, TRIP_STARTED, etc.)
+            const eventTopic = `/topic/rides/${rideId}`;
+            rideSub = stompClient.subscribe(eventTopic, function (message) {
+                const event = JSON.parse(message.body);
+                log(`🚨 <b>EVENT RECEIVED:</b> [${event.eventType}] - "${event.message}" | Status: <b style="color:#38bdf8;">${event.data ? event.data.status : ''}</b>`, 'log-event');
+            });
+            log(`Subscribed to Event Topic: <b>${eventTopic}</b>`);
+
+            // 2. Subscribe to Driver Location updates
+            const locTopic = `/topic/rides/${rideId}/location`;
+            locationSub = stompClient.subscribe(locTopic, function (message) {
+                const loc = JSON.parse(message.body);
+                log(`🚕 <b>GPS PACKET:</b> Driver #${loc.driverId} -> Lat: ${loc.latitude.toFixed(4)}, Lng: ${loc.longitude.toFixed(4)} | Bearing: ${loc.bearing}° | Speed: ${loc.speed} km/h`, 'log-loc');
+            });
+            log(`Subscribed to GPS Location Topic: <b>${locTopic}</b>`);
+        }
+
+        function sendDriverLocation() {
+            const rideId = document.getElementById('rideId').value;
+            if (!stompClient || !stompClient.connected) {
+                alert("Please connect first!");
+                return;
+            }
+
+            // Move coordinates slightly to simulate driving
+            simulatedLat += 0.0012;
+            simulatedLng += 0.0008;
+
+            const payload = {
+                driverId: 1,
+                rideId: parseInt(rideId),
+                latitude: simulatedLat,
+                longitude: simulatedLng,
+                bearing: 45.0,
+                speed: 42.5,
+                timestamp: Date.now()
+            };
+
+            log(`Sending Driver GPS update to destination <b>/app/rides/${rideId}/location</b>...`);
+            stompClient.send(`/app/rides/${rideId}/location`, {}, JSON.stringify(payload));
+        }
+    </script>
+</body>
+</html>

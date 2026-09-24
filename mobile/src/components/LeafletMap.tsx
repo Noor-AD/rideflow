@@ -1,6 +1,6 @@
 // mobile/src/components/LeafletMap.tsx
 import React, { useRef, useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, Platform } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 interface Coordinates {
@@ -28,6 +28,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   rideStatus,
 }) => {
   const webViewRef = useRef<WebView>(null);
+  const iframeRef = useRef<any>(null);
 
   // Generate the standalone HTML template with Leaflet & CartoDB Voyager tiles
   const htmlContent = `
@@ -221,7 +222,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     </html>
   `;
 
-  // Push updates to webview when coordinates change without re-rendering the whole webview
+  // Push updates to webview/iframe when coordinates change without re-rendering the whole map
   useEffect(() => {
     const payload = JSON.stringify({
       pickup: pickupCoords,
@@ -230,13 +231,34 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       routeCoordinates,
       rideStatus,
     });
-    webViewRef.current?.injectJavaScript(`
-      if (window.updateCoordinates) {
-        window.updateCoordinates(${payload});
+
+    if (Platform.OS === 'web') {
+      const iframe = iframeRef.current;
+      if (iframe && iframe.contentWindow && (iframe.contentWindow as any).updateCoordinates) {
+        (iframe.contentWindow as any).updateCoordinates(JSON.parse(payload));
       }
-      true;
-    `);
+    } else {
+      webViewRef.current?.injectJavaScript(`
+        if (window.updateCoordinates) {
+          window.updateCoordinates(${payload});
+        }
+        true;
+      `);
+    }
   }, [pickupCoords, dropoffCoords, driverLocation, routeCoordinates, rideStatus]);
+
+  if (Platform.OS === 'web') {
+    return (
+      <View style={styles.container}>
+        <iframe
+          ref={iframeRef}
+          srcDoc={htmlContent}
+          style={{ width: '100%', height: '100%', border: 'none', backgroundColor: '#0f172a' } as any}
+          title="Leaflet Map"
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

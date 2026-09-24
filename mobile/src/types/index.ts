@@ -105,8 +105,9 @@ export interface DriverLocationPayload {
   latitude: number;
   longitude: number;
   heading?: number;
+  bearing?: number;
   speed?: number;
-  timestamp: string;
+  timestamp: string | number;
 }
 
 export interface RideEventPayload {

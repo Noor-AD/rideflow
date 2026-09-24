@@ -66,6 +66,8 @@ export const DriverScreen: React.FC = () => {
   const [todayTripsCount, setTodayTripsCount] = useState<number>(6);
   const chatModalOpenRef = useRef(false);
   chatModalOpenRef.current = showChatModal;
+  const activeRideRef = useRef<Ride | null>(null);
+  activeRideRef.current = activeRide;
 
   const fetchEarningsSummary = async () => {
     try {
@@ -132,12 +134,13 @@ export const DriverScreen: React.FC = () => {
                   latitude: location.coords.latitude,
                   longitude: location.coords.longitude,
                   heading: location.coords.heading || 0,
+                  bearing: location.coords.heading || 0,
                   speed: location.coords.speed || 0,
-                  timestamp: new Date().toISOString(),
+                  timestamp: Date.now(),
                 };
 
                 // Stream directly to Spring Boot broker for this active ride
-                mobileWs.sendDriverLocation(payload, activeRide?.id);
+                mobileWs.sendDriverLocation(payload, activeRideRef.current?.id);
               }
             );
           }

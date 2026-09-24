@@ -635,6 +635,7 @@ export const RiderScreen: React.FC = () => {
           dropoffCoords={dropoffCoords}
           driverLocation={driverLocation}
           routeCoordinates={routeCoordinates}
+          rideStatus={activeRide?.status}
         />
       </View>
 

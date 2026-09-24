@@ -15,6 +15,7 @@ interface LeafletMapProps {
   pickupAddress?: string;
   dropoffAddress?: string;
   routeCoordinates?: [number, number][];
+  rideStatus?: string;
 }
 
 export const LeafletMap: React.FC<LeafletMapProps> = ({
@@ -24,6 +25,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   pickupAddress = 'Pickup Point',
   dropoffAddress = 'Destination',
   routeCoordinates,
+  rideStatus,
 }) => {
   const webViewRef = useRef<WebView>(null);
 
@@ -160,7 +162,20 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               driverMarker.setLatLng([data.driver.latitude, data.driver.longitude]);
             }
 
-            if (data.pickup) {
+            if (data.rideStatus === 'IN_PROGRESS') {
+              // During trip to destination: clear pickup approach line and track vehicle towards dropoff
+              if (approachingLine) {
+                map.removeLayer(approachingLine);
+                approachingLine = null;
+              }
+              if (data.dropoff) {
+                var inRideBounds = L.latLngBounds([
+                  [data.driver.latitude, data.driver.longitude],
+                  [data.dropoff.latitude, data.dropoff.longitude]
+                ]);
+                map.fitBounds(inRideBounds, { padding: [60, 60], maxZoom: 16 });
+              }
+            } else if (data.pickup) {
               if (!approachingLine) {
                 approachingLine = L.polyline([
                   [data.driver.latitude, data.driver.longitude],
@@ -213,6 +228,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       dropoff: dropoffCoords,
       driver: driverLocation,
       routeCoordinates,
+      rideStatus,
     });
     webViewRef.current?.injectJavaScript(`
       if (window.updateCoordinates) {
@@ -220,7 +236,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       }
       true;
     `);
-  }, [pickupCoords, dropoffCoords, driverLocation, routeCoordinates]);
+  }, [pickupCoords, dropoffCoords, driverLocation, routeCoordinates, rideStatus]);
 
   return (
     <View style={styles.container}>

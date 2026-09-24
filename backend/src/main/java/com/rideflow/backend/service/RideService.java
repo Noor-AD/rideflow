@@ -413,6 +413,7 @@ public class RideService {
                 .durationMinutes(ride.getDurationMinutes())
                 .estimatedFare(ride.getEstimatedFare())
                 .actualFare(ride.getActualFare())
+                .fare(ride.getActualFare() != null ? ride.getActualFare() : ride.getEstimatedFare())
                 .otp(ride.getOtp())
                 .vehicleType(ride.getVehicleType())
                 .status(ride.getStatus())

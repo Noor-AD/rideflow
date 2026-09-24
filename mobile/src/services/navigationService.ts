@@ -523,4 +523,24 @@ export const navigationService = {
         return Math.round(60 + baseKm * 15);
     }
   },
+
+  /**
+   * Parse UTC date string from backend and format into user's local device timezone.
+   */
+  formatDateTime: (dateStr?: string | null): { date: string; time: string; full: string } => {
+    if (!dateStr) return { date: '', time: '', full: '' };
+    // If date string doesn't include timezone marker ('Z' or offset like +05:30), append 'Z' so JS parses as UTC
+    const hasTz = dateStr.endsWith('Z') || /[+-]\d{2}(:?\d{2})?$/.test(dateStr);
+    const normalized = hasTz ? dateStr : `${dateStr}Z`;
+    const d = new Date(normalized);
+    const valid = isNaN(d.getTime()) ? new Date(dateStr) : d;
+
+    const date = valid.toLocaleDateString([], { day: 'numeric', month: 'numeric', year: 'numeric' });
+    const time = valid.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+    return {
+      date,
+      time,
+      full: `${date} • ${time}`,
+    };
+  },
 };

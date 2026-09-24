@@ -78,8 +78,11 @@ export const ScheduledRidesDrawer: React.FC<ScheduledRidesDrawerProps> = ({
   const formatScheduleTime = (timeStr?: string) => {
     if (!timeStr) return 'Pending time';
     try {
-      const d = new Date(timeStr);
-      return d.toLocaleDateString([], {
+      const hasTz = timeStr.endsWith('Z') || /[+-]\d{2}(:?\d{2})?$/.test(timeStr);
+      const normalized = hasTz ? timeStr : `${timeStr}Z`;
+      const d = new Date(normalized);
+      const valid = isNaN(d.getTime()) ? new Date(timeStr) : d;
+      return valid.toLocaleDateString([], {
         weekday: 'short',
         month: 'short',
         day: 'numeric',

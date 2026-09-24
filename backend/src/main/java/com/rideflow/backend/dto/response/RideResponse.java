@@ -2,6 +2,7 @@ package com.rideflow.backend.dto.response;
 
 import java.time.LocalDateTime;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.rideflow.backend.model.PaymentMethod;
 import com.rideflow.backend.model.PaymentStatus;
 import com.rideflow.backend.model.RideStatus;
@@ -46,6 +47,7 @@ public class RideResponse {
     private Double durationMinutes;
     private Double estimatedFare;
     private Double actualFare;
+    private Double fare;
 
     // Trip Verification
     private String otp;
@@ -56,13 +58,21 @@ public class RideResponse {
     private PaymentMethod paymentMethod;
     private PaymentStatus paymentStatus;
 
-    // Timestamps
+    // Timestamps in UTC ISO-8601
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'")
     private LocalDateTime createdAt;
+
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'")
     private LocalDateTime acceptedAt;
+
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'")
     private LocalDateTime startedAt;
+
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'")
     private LocalDateTime completedAt;
 
     // Advance Booking
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'")
     private LocalDateTime scheduledPickupTime;
     private Boolean isScheduled;
 }

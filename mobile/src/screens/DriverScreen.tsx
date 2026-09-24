@@ -19,6 +19,7 @@ import { mobileWs } from '../api/websocket';
 import { DriverEarningsModal } from '../components/DriverEarningsModal';
 import { InRideChatModal } from '../components/InRideChatModal';
 import { EditProfileModal } from '../components/EditProfileModal';
+import { navigationService } from '../services/navigationService';
 import type { Ride } from '../types';
 import {
   Power,
@@ -617,7 +618,7 @@ export const DriverScreen: React.FC = () => {
                         <User size={13} color="#38bdf8" />
                         <Text style={styles.historyPassengerText}>{ride.rider?.name || 'Passenger'}</Text>
                       </View>
-                      <Text style={styles.historyFare}>+ ₹{ride.fare}</Text>
+                      <Text style={styles.historyFare}>+ ₹{ride.actualFare || ride.estimatedFare || ride.fare || 0}</Text>
                     </View>
 
                     <View style={styles.historyRoute}>
@@ -635,8 +636,7 @@ export const DriverScreen: React.FC = () => {
 
                     <View style={styles.historyCardBottom}>
                       <Text style={styles.historyDate}>
-                        {new Date(ride.createdAt).toLocaleDateString()} •{' '}
-                        {new Date(ride.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {navigationService.formatDateTime(ride.createdAt).full}
                       </Text>
                       <View
                         style={[

@@ -914,9 +914,9 @@ export const RiderScreen: React.FC = () => {
                   <View key={ride.id} style={styles.historyCard}>
                     <View style={styles.historyCardTop}>
                       <View style={styles.historyVehicleBadge}>
-                        <Text style={styles.historyVehicleText}>{ride.driver?.vehicleType || 'PREMIUM'}</Text>
+                        <Text style={styles.historyVehicleText}>{ride.vehicleType || ride.driver?.vehicleType || 'ECONOMY'}</Text>
                       </View>
-                      <Text style={styles.historyFare}>₹{ride.fare}</Text>
+                      <Text style={styles.historyFare}>₹{ride.actualFare || ride.estimatedFare || ride.fare || 0}</Text>
                     </View>
 
                     <View style={styles.historyRoute}>
@@ -934,8 +934,7 @@ export const RiderScreen: React.FC = () => {
 
                     <View style={styles.historyCardBottom}>
                       <Text style={styles.historyDate}>
-                        {new Date(ride.createdAt).toLocaleDateString()} •{' '}
-                        {new Date(ride.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {navigationService.formatDateTime(ride.createdAt).full}
                       </Text>
                       <View
                         style={[

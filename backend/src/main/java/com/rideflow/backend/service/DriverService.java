@@ -15,7 +15,7 @@ import com.rideflow.backend.model.User;
 import com.rideflow.backend.repository.DriverRepository;
 import com.rideflow.backend.repository.UserRepository;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
 @Service

@@ -352,7 +352,7 @@ public class RideService {
         Ride ride = rideRepository.findById(rideId)
                 .orElseThrow(() -> new IllegalArgumentException("Ride not found with id: " + rideId));
 
-        if (ride.getDriver() == null || !ride.getDriver().getUser().getId().equals(driverUserId)) {
+        if (ride.getDriver() == null || ride.getDriver().getUser() == null || !ride.getDriver().getUser().getId().equals(driverUserId)) {
             throw new IllegalStateException("You are not the assigned driver for this ride.");
         }
         return ride;

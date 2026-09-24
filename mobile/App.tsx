@@ -1,12 +1,15 @@
 // mobile/App.tsx
 import React from 'react';
-import { StyleSheet, View, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, LogBox } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { RiderScreen } from './src/screens/RiderScreen';
 import { DriverScreen } from './src/screens/DriverScreen';
+
+// Clear developer yellow warning boxes/lines on phone UI
+LogBox.ignoreAllLogs();
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, isLoading, activeRole } = useAuth();

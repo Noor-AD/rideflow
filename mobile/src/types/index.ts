@@ -88,6 +88,8 @@ export interface Ride {
   dropoffAddress?: string;
   status: RideStatus;
   fare: number;
+  actualFare?: number;
+  estimatedFare?: number;
   otp?: string; // 4-digit ride start OTP displayed to passenger
   vehicleType?: VehicleType;
   paymentMethod?: PaymentMethod;
@@ -109,11 +111,14 @@ export interface DriverLocationPayload {
 
 export interface RideEventPayload {
   rideId: number;
-  status: RideStatus;
+  status?: RideStatus;
+  eventType?: string;
   driverId?: number;
   driverLat?: number;
   driverLng?: number;
-  timestamp: string;
+  message?: string;
+  data?: any;
+  timestamp?: string;
 }
 
 // 5. In-App Live Chat Message

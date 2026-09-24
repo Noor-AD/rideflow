@@ -247,6 +247,9 @@ public class RideService {
         RideEventPayload event = RideEventPayload.builder()
                 .eventType(eventType)
                 .rideId(rideId)
+                .status(rideResponse != null ? rideResponse.getStatus() : null)
+                .driverLat(rideResponse != null ? rideResponse.getPickupLat() : null)
+                .driverLng(rideResponse != null ? rideResponse.getPickupLng() : null)
                 .message(message)
                 .data(rideResponse)
                 .build();

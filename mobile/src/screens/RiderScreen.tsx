@@ -47,6 +47,7 @@ import {
   Calendar,
   QrCode,
   Edit2,
+  CheckCircle2,
 } from 'lucide-react-native';
 
 export const RiderScreen: React.FC = () => {
@@ -86,6 +87,7 @@ export const RiderScreen: React.FC = () => {
   const [historyRides, setHistoryRides] = useState<Ride[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
+  const [completedRideDetails, setCompletedRideDetails] = useState<any>(null);
   const [completedRideId, setCompletedRideId] = useState<number | null>(null);
   const [selectedRating, setSelectedRating] = useState(5);
   const [ratingComment, setRatingComment] = useState('');
@@ -202,24 +204,54 @@ export const RiderScreen: React.FC = () => {
 
     if (!activeRide) return;
 
-    // A. Subscribe to ride status transitions (ACCEPTED, ARRIVED, COMPLETED)
-    const unsubStatus = mobileWs.subscribeToRideUpdates(activeRide.id, (event) => {
+    // A. Subscribe to ride status transitions (ACCEPTED, ARRIVED, IN_PROGRESS, COMPLETED, CANCELLED)
+    const unsubStatus = mobileWs.subscribeToRideUpdates(activeRide.id, (event: any) => {
       console.log('⚡ Rider received STOMP update:', event);
 
-      setActiveRide((prev) => (prev ? { ...prev, status: event.status } : null));
+      const status: RideStatus | undefined =
+        event.status ||
+        event.data?.status ||
+        (event.eventType === 'TRIP_COMPLETED' ? 'COMPLETED' :
+         event.eventType === 'RIDE_ACCEPTED' ? 'ACCEPTED' :
+         event.eventType === 'DRIVER_ARRIVED' ? 'ARRIVED' :
+         event.eventType === 'TRIP_STARTED' ? 'IN_PROGRESS' :
+         event.eventType === 'RIDE_CANCELLED' ? 'CANCELLED' : undefined);
 
-      if (event.driverLat && event.driverLng) {
-        setDriverLocation({
-          latitude: event.driverLat,
-          longitude: event.driverLng,
-        });
-      }
+      if (!status) return;
 
-      if (event.status === 'COMPLETED') {
+      if (status === 'COMPLETED' || event.eventType === 'TRIP_COMPLETED') {
+        const fullRide = {
+          ...activeRide,
+          ...(event.data || {}),
+          status: 'COMPLETED' as RideStatus,
+          fare: event.data?.actualFare || event.data?.estimatedFare || activeRide.fare,
+        };
+        setCompletedRideDetails(fullRide);
         setCompletedRideId(activeRide.id);
         setShowRatingModal(true);
+        setActiveRide(null);
+        setDriverLocation(null);
         fetchWalletBalance();
-        Alert.alert('Trip Completed', 'You have arrived at your destination! Thank you for riding with RideFlow.');
+        Alert.alert('Trip Completed 🎉', 'You have arrived at your destination! Thank you for riding with RideFlow.');
+        return;
+      }
+
+      setActiveRide((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          status,
+          ...(event.data || {}),
+        };
+      });
+
+      const dLat = event.driverLat || event.data?.driverLat;
+      const dLng = event.driverLng || event.data?.driverLng;
+      if (dLat && dLng) {
+        setDriverLocation({
+          latitude: dLat,
+          longitude: dLng,
+        });
       }
     });
 
@@ -245,6 +277,43 @@ export const RiderScreen: React.FC = () => {
       unsubChat();
     };
   }, [activeRide?.id]);
+
+  // 3.5 Fallback Watchdog Polling for active ride status in case STOMP socket drops
+  useEffect(() => {
+    if (!activeRide?.id || activeRide.status === 'COMPLETED') return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const current = await rideApi.getRiderActiveRide();
+        if (current && current.status) {
+          if (current.status !== activeRide.status) {
+            setActiveRide((prev) => (prev ? { ...prev, ...current } : current));
+          }
+        } else {
+          // Ongoing active ride returned null -> trip completed or cancelled on server!
+          const history = await rideApi.getRiderTripHistory();
+          const latest = history?.[0];
+          if (latest && (latest.id === activeRide.id || latest.status === 'COMPLETED')) {
+            const fullRide = {
+              ...activeRide,
+              ...latest,
+              fare: latest.actualFare || latest.estimatedFare || activeRide.fare,
+            };
+            setCompletedRideDetails(fullRide);
+            setCompletedRideId(latest.id);
+            setShowRatingModal(true);
+            setActiveRide(null);
+            setDriverLocation(null);
+            fetchWalletBalance();
+          }
+        }
+      } catch (pollErr) {
+        // Silently ignore intermittent network error
+      }
+    }, 2500);
+
+    return () => clearInterval(pollInterval);
+  }, [activeRide?.id, activeRide?.status]);
 
   const economyFare = navigationService.calculateFare(routeDistanceKm, 'ECONOMY');
   const premiumFare = navigationService.calculateFare(routeDistanceKm, 'PREMIUM');
@@ -892,15 +961,19 @@ export const RiderScreen: React.FC = () => {
         </SafeAreaView>
       </Modal>
 
-      {/* 5-STAR POST-TRIP DRIVER RATING MODAL */}
+      {/* 5-STAR POST-TRIP DRIVER RATING & RECEIPT MODAL */}
       <Modal visible={showRatingModal} animationType="fade" transparent>
         <View style={styles.ratingOverlay}>
           <View style={styles.ratingCard}>
             <View style={styles.ratingHeader}>
-              <Text style={styles.ratingTitle}>Rate Your Driver</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <CheckCircle2 size={22} color="#10b981" />
+                <Text style={styles.ratingTitle}>Trip Completed!</Text>
+              </View>
               <TouchableOpacity
                 onPress={() => {
                   setShowRatingModal(false);
+                  setCompletedRideDetails(null);
                   setActiveRide(null);
                   setDriverLocation(null);
                 }}
@@ -909,7 +982,41 @@ export const RiderScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.ratingSubtitle}>How was your ride experience with RideFlow?</Text>
+            {/* Trip Fare & Receipt Box */}
+            <View style={styles.receiptBox}>
+              <View style={styles.receiptTopRow}>
+                <View>
+                  <Text style={styles.receiptFareLabel}>TOTAL FARE</Text>
+                  <Text style={styles.receiptFareValue}>
+                    ₹{completedRideDetails?.actualFare || completedRideDetails?.estimatedFare || completedRideDetails?.fare || selectedFare}
+                  </Text>
+                </View>
+                <View style={styles.receiptPaidBadge}>
+                  <Text style={styles.receiptPaidBadgeText}>
+                    PAID ({completedRideDetails?.paymentMethod || selectedPaymentMethod || 'CASH'})
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.receiptDivider} />
+
+              <View style={styles.receiptRouteRow}>
+                <MapPin size={13} color="#10b981" />
+                <Text style={styles.receiptRouteText} numberOfLines={1}>
+                  {completedRideDetails?.pickupAddress || pickupAddress}
+                </Text>
+              </View>
+              <View style={styles.receiptRouteRow}>
+                <Navigation size={13} color="#f43f5e" />
+                <Text style={styles.receiptRouteText} numberOfLines={1}>
+                  {completedRideDetails?.dropoffAddress || dropoffAddress}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.ratingSubtitle}>
+              How was your ride experience with {completedRideDetails?.driverName || 'your driver'}?
+            </Text>
 
             {/* Clickable 5 Stars */}
             <View style={styles.starsRow}>
@@ -920,7 +1027,7 @@ export const RiderScreen: React.FC = () => {
                   style={styles.starBtn}
                 >
                   <Star
-                    size={32}
+                    size={30}
                     color={star <= selectedRating ? '#fbbf24' : '#334155'}
                     fill={star <= selectedRating ? '#fbbf24' : 'transparent'}
                   />
@@ -946,7 +1053,7 @@ export const RiderScreen: React.FC = () => {
               {isSubmittingRating ? (
                 <ActivityIndicator color="#020617" />
               ) : (
-                <Text style={styles.submitRatingBtnText}>Submit Rating</Text>
+                <Text style={styles.submitRatingBtnText}>Submit Rating & Done</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -1725,7 +1832,62 @@ const styles = StyleSheet.create({
   ratingSubtitle: {
     color: '#94a3b8',
     fontSize: 13,
-    marginBottom: 18,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  receiptBox: {
+    backgroundColor: '#020617',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#1e293b',
+  },
+  receiptTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  receiptFareLabel: {
+    color: '#64748b',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  receiptFareValue: {
+    color: '#10b981',
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  receiptPaidBadge: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  receiptPaidBadgeText: {
+    color: '#10b981',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  receiptDivider: {
+    height: 1,
+    backgroundColor: '#1e293b',
+    marginVertical: 10,
+  },
+  receiptRouteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginVertical: 3,
+  },
+  receiptRouteText: {
+    color: '#cbd5e1',
+    fontSize: 12,
+    flex: 1,
   },
   starsRow: {
     flexDirection: 'row',

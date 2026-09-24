@@ -79,8 +79,13 @@ export const AuthScreen: React.FC = () => {
       await login(authData);
     } catch (err: any) {
       console.error('Mobile login failed:', err);
-      const serverMsg = err.response?.data?.message || err.response?.data?.error;
-      setErrorMessage(serverMsg || 'Login failed. Please check your credentials.');
+      let serverMsg = err.response?.data?.message;
+      if (!serverMsg && (err.response?.status === 401 || err.response?.status === 403)) {
+        serverMsg = 'Invalid email or password. Please check your credentials.';
+      } else if (!serverMsg) {
+        serverMsg = err.response?.data?.error;
+      }
+      setErrorMessage(serverMsg || 'Invalid email or password. Please check your credentials.');
     } finally {
       setIsLoading(false);
     }

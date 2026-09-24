@@ -49,8 +49,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       onLoginSuccess(auth);
     } catch (err) {
       console.error('Login failure:', err);
-      const errorObj = err as { response?: { data?: { message?: string; error?: string } } };
-      const serverMsg = errorObj.response?.data?.message || errorObj.response?.data?.error;
+      const errorObj = err as { response?: { status?: number; data?: { message?: string; error?: string } } };
+      let serverMsg = errorObj.response?.data?.message;
+      if (!serverMsg && (errorObj.response?.status === 401 || errorObj.response?.status === 403)) {
+        serverMsg = 'Invalid corporate email or password. Please verify your credentials.';
+      } else if (!serverMsg) {
+        serverMsg = errorObj.response?.data?.error;
+      }
       setErrorMessage(
         serverMsg || 'Authentication failed. Please verify your email and password.'
       );

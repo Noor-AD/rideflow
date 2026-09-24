@@ -79,10 +79,24 @@ export const InRideChatModal: React.FC<InRideChatModalProps> = ({
     // B. Subscribe to live WebSocket messages for this ride
     const unsubscribe = mobileWs.subscribeToRideChat(rideId, (incomingMsg) => {
       setMessages((prev) => {
-        // Prevent duplicates
+        // Prevent duplicates if already in state by ID
         if (incomingMsg.id && prev.some((m) => m.id === incomingMsg.id)) {
           return prev;
         }
+
+        // Replace any matching optimistic message (which has no id yet)
+        const optimisticIndex = prev.findIndex(
+          (m) =>
+            !m.id &&
+            m.senderId === incomingMsg.senderId &&
+            m.message === incomingMsg.message
+        );
+        if (optimisticIndex !== -1) {
+          const updated = [...prev];
+          updated[optimisticIndex] = incomingMsg;
+          return updated;
+        }
+
         return [...prev, incomingMsg];
       });
     });
@@ -115,15 +129,32 @@ export const InRideChatModal: React.FC<InRideChatModalProps> = ({
       timestamp: Date.now(),
     };
 
-    // Optimistic UI update
+    // Optimistic UI update for instantaneous feel
     setMessages((prev) => [...prev, newMsg]);
     setInputText('');
 
-    // Send via STOMP WebSocket
-    mobileWs.sendChatMessage(rideId, newMsg);
-
-    // Fallback REST call in background
-    chatApi.sendMessage(rideId, newMsg).catch(() => {});
+    // If WebSocket is connected, send via STOMP WebSocket ONLY
+    if (mobileWs.status === 'CONNECTED') {
+      mobileWs.sendChatMessage(rideId, newMsg);
+    } else {
+      // Fallback to REST only when WebSocket is offline
+      chatApi.sendMessage(rideId, newMsg)
+        .then((saved) => {
+          setMessages((prev) => {
+            if (saved.id && prev.some((m) => m.id === saved.id)) return prev;
+            const idx = prev.findIndex((m) => !m.id && m.message === saved.message);
+            if (idx !== -1) {
+              const updated = [...prev];
+              updated[idx] = saved;
+              return updated;
+            }
+            return [...prev, saved];
+          });
+        })
+        .catch((err) => {
+          console.error('Failed to send message via REST fallback:', err);
+        });
+    }
   };
 
   const formatTime = (epochMs: number) => {

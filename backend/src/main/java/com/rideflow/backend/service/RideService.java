@@ -5,10 +5,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.GeometryFactory;
-import org.locationtech.jts.geom.Point;
-import org.locationtech.jts.geom.PrecisionModel;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,7 +39,6 @@ public class RideService {
     private final SimpMessagingTemplate messagingTemplate; // 👈 Injected for real-time WebSocket push
     private final WalletService walletService;
 
-    private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
     private final SecureRandom secureRandom = new SecureRandom();
 
     private static final List<RideStatus> ACTIVE_STATUSES = List.of(
@@ -78,10 +73,6 @@ public class RideService {
         // Generate 4-digit verification OTP
         String otp = String.format("%04d", secureRandom.nextInt(10000));
 
-        // Create PostGIS Points (Longitude = X, Latitude = Y)
-        Point pickupPoint = geometryFactory.createPoint(new Coordinate(request.getPickupLng(), request.getPickupLat()));
-        Point dropoffPoint = geometryFactory.createPoint(new Coordinate(request.getDropoffLng(), request.getDropoffLat()));
-
         // Check if advance scheduled ride
         boolean isScheduledRide = false;
         LocalDateTime scheduledTime = null;
@@ -98,9 +89,11 @@ public class RideService {
 
         Ride ride = Ride.builder()
                 .rider(rider)
-                .pickupLocation(pickupPoint)
+                .pickupLat(request.getPickupLat())
+                .pickupLng(request.getPickupLng())
                 .pickupAddress(request.getPickupAddress())
-                .dropoffLocation(dropoffPoint)
+                .dropoffLat(request.getDropoffLat())
+                .dropoffLng(request.getDropoffLng())
                 .dropoffAddress(request.getDropoffAddress())
                 .distanceKm(Math.round(distanceKm * 100.0) / 100.0)
                 .durationMinutes(Math.round(durationMinutes * 10.0) / 10.0)
@@ -407,11 +400,11 @@ public class RideService {
                 .riderId(ride.getRider().getId())
                 .riderName(ride.getRider().getName())
                 .riderPhone(ride.getRider().getPhone())
-                .pickupLat(ride.getPickupLocation().getY())
-                .pickupLng(ride.getPickupLocation().getX())
+                .pickupLat(ride.getPickupLat())
+                .pickupLng(ride.getPickupLng())
                 .pickupAddress(ride.getPickupAddress())
-                .dropoffLat(ride.getDropoffLocation().getY())
-                .dropoffLng(ride.getDropoffLocation().getX())
+                .dropoffLat(ride.getDropoffLat())
+                .dropoffLng(ride.getDropoffLng())
                 .dropoffAddress(ride.getDropoffAddress())
                 .distanceKm(ride.getDistanceKm())
                 .durationMinutes(ride.getDurationMinutes())

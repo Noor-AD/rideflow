@@ -3,10 +3,6 @@ package com.rideflow.backend.service;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.GeometryFactory;
-import org.locationtech.jts.geom.Point;
-import org.locationtech.jts.geom.PrecisionModel;
 import org.springframework.stereotype.Service;
 
 import com.rideflow.backend.dto.request.DriverOnboardingRequest;
@@ -27,7 +23,6 @@ import lombok.RequiredArgsConstructor;
 public class DriverService {
     private final DriverRepository driverRepository;
     private final UserRepository userRepository;
-    private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
 
     @Transactional
     public DriverResponse onboardDriver(Long userId, DriverOnboardingRequest request) {
@@ -61,8 +56,8 @@ public class DriverService {
     @Transactional
     public DriverResponse updateLocation(Long userId, LocationUpdateRequest request) {
         DriverProfile driver = getDriverByUserId(userId);
-        Point point = geometryFactory.createPoint(new Coordinate(request.getLongitude(), request.getLatitude()));
-        driver.setCurrentLocation(point);
+        driver.setCurrentLatitude(request.getLatitude());
+        driver.setCurrentLongitude(request.getLongitude());
         return mapToResponse(driverRepository.save(driver));
     }
     @Transactional
@@ -127,8 +122,8 @@ public class DriverService {
                 .orElseThrow(() -> new RuntimeException("Driver profile not found for user id: " + userId));
     }
     public DriverResponse mapToResponse(DriverProfile driver) {
-        Double lat = driver.getCurrentLocation() != null ? driver.getCurrentLocation().getY() : null;
-        Double lng = driver.getCurrentLocation() != null ? driver.getCurrentLocation().getX() : null;
+        Double lat = driver.getCurrentLatitude();
+        Double lng = driver.getCurrentLongitude();
         return DriverResponse.builder()
                 .id(driver.getId())
                 .userId(driver.getUser().getId())

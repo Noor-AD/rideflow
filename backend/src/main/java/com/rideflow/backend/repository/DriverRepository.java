@@ -22,16 +22,16 @@ public interface DriverRepository extends JpaRepository<DriverProfile, Long> {
         SELECT d.* FROM driver_profiles d
         WHERE d.is_online = true
           AND d.approval_status = 'VERIFIED'
-          AND d.current_location IS NOT NULL
-          AND ST_DWithin(
-                d.current_location::geography,
-                ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography,
-                :radiusInMeters
-              )
-        ORDER BY ST_Distance(
-                d.current_location::geography,
-                ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography
-              ) ASC
+          AND d.current_latitude IS NOT NULL
+          AND d.current_longitude IS NOT NULL
+          AND (6371000 * acos(least(1.0, greatest(-1.0,
+                cos(radians(:latitude)) * cos(radians(d.current_latitude)) *
+                cos(radians(d.current_longitude) - radians(:longitude)) +
+                sin(radians(:latitude)) * sin(radians(d.current_latitude)))))) <= :radiusInMeters
+        ORDER BY (6371000 * acos(least(1.0, greatest(-1.0,
+                cos(radians(:latitude)) * cos(radians(d.current_latitude)) *
+                cos(radians(d.current_longitude) - radians(:longitude)) +
+                sin(radians(:latitude)) * sin(radians(d.current_latitude)))))) ASC
         """, nativeQuery = true)
     List<DriverProfile> findNearbyAvailableDrivers(
             @Param("longitude") double longitude,

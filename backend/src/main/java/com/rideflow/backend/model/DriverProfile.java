@@ -1,6 +1,5 @@
 package com.rideflow.backend.model;
 
-import org.locationtech.jts.geom.Point;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -62,7 +61,9 @@ public class DriverProfile {
     @Builder.Default
     private Integer totalRides = 0;
 
-    // PostGIS 2D Point (Longitude, Latitude) in WGS 84 SRID 4326
-    @Column(columnDefinition = "geometry(Point, 4326)")
-    private Point currentLocation;
+    @Column(name = "current_latitude")
+    private Double currentLatitude;
+
+    @Column(name = "current_longitude")
+    private Double currentLongitude;
 }

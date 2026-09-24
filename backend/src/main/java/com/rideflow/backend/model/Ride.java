@@ -2,7 +2,6 @@ package com.rideflow.backend.model;
 
 import java.time.LocalDateTime;
 
-import org.locationtech.jts.geom.Point;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -45,14 +44,20 @@ public class Ride {
     private DriverProfile driver;
 
     // 2.Where are they going
-    @Column(columnDefinition="geometry(Point, 4326)", nullable=false)
-    private Point pickupLocation;
+    @Column(nullable = false)
+    private Double pickupLat;
+
+    @Column(nullable = false)
+    private Double pickupLng;
 
     @Column(nullable=false)
     private String pickupAddress;
 
-    @Column(columnDefinition="geometry(Point, 4326)", nullable=false)
-    private Point dropoffLocation;
+    @Column(nullable = false)
+    private Double dropoffLat;
+
+    @Column(nullable = false)
+    private Double dropoffLng;
 
     @Column(nullable=false)
     private String dropoffAddress;

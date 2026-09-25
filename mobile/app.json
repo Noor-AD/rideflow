@@ -41,6 +41,11 @@
         "projectId": "6f58448b-abde-41a3-a3f6-e0af40819f79"
       }
     },
-    "owner": "noorad"
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/6f58448b-abde-41a3-a3f6-e0af40819f79"
+    }
   }
 }

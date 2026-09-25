@@ -43,7 +43,7 @@ export const InRideChatModal: React.FC<InRideChatModalProps> = ({
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
-  const flatListRef = useRef<FlatList>(null);
+  const flatListRef = useRef<any>(null);
 
   // Quick-tap canned messages customized by role
   const riderCannedMessages = [

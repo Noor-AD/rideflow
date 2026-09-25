@@ -27,7 +27,7 @@
     "@types/react": "~19.2.2",
     "@types/sockjs-client": "^1.5.4",
     "@types/text-encoding": "^0.0.40",
-    "typescript": "~6.0.3"
+    "typescript": "~5.7.0"
   },
   "scripts": {
     "start": "expo start",

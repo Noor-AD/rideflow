@@ -63,6 +63,10 @@ export const InRideChatModal: React.FC<InRideChatModalProps> = ({
   const cannedMessages =
     currentUserRole === 'ROLE_DRIVER' ? driverCannedMessages : riderCannedMessages;
 
+  const isSendingRef = useRef(false);
+  const lastSentTextRef = useRef('');
+  const lastSentTimeRef = useRef(0);
+
   // Helper: Deduplicate and merge incoming or saved messages
   const upsertMessage = (incomingMsg: ChatMessage) => {
     setMessages((prev) => {
@@ -75,7 +79,7 @@ export const InRideChatModal: React.FC<InRideChatModalProps> = ({
       const optimisticIndex = prev.findIndex(
         (m) =>
           (!m.id || m.id < 0) &&
-          m.message.trim() === incomingMsg.message.trim() &&
+          m.message.trim().toLowerCase() === incomingMsg.message.trim().toLowerCase() &&
           (m.senderRole === incomingMsg.senderRole || m.senderId === incomingMsg.senderId)
       );
 
@@ -85,14 +89,12 @@ export const InRideChatModal: React.FC<InRideChatModalProps> = ({
         return updated;
       }
 
-      // 3. Prevent duplicate if a confirmed message with same text & role arrived recently (< 6 seconds)
+      // 3. Prevent duplicate if a message with same text & role arrived recently (< 4 seconds)
       const isRecentDuplicate = prev.some(
         (m) =>
-          m.id &&
-          m.id > 0 &&
-          m.message.trim() === incomingMsg.message.trim() &&
+          m.message.trim().toLowerCase() === incomingMsg.message.trim().toLowerCase() &&
           (m.senderRole === incomingMsg.senderRole || m.senderId === incomingMsg.senderId) &&
-          Math.abs((incomingMsg.timestamp || Date.now()) - (m.timestamp || Date.now())) < 6000
+          Math.abs((incomingMsg.timestamp || Date.now()) - (m.timestamp || Date.now())) < 4000
       );
 
       if (isRecentDuplicate) {
@@ -111,8 +113,22 @@ export const InRideChatModal: React.FC<InRideChatModalProps> = ({
     chatApi.getMessages(rideId)
       .then((history) => {
         setMessages((prev) => {
+          // Collapse duplicate messages that have identical text & senderRole within 4 seconds
+          const cleanedHistory: ChatMessage[] = [];
+          (history || []).forEach((msg) => {
+            const isDup = cleanedHistory.some(
+              (existing) =>
+                existing.message.trim().toLowerCase() === msg.message.trim().toLowerCase() &&
+                existing.senderRole === msg.senderRole &&
+                Math.abs((msg.timestamp || 0) - (existing.timestamp || 0)) < 4000
+            );
+            if (!isDup) {
+              cleanedHistory.push(msg);
+            }
+          });
+
           const map = new Map<number, ChatMessage>();
-          (history || []).forEach((m) => {
+          cleanedHistory.forEach((m) => {
             if (m.id) map.set(m.id, m);
           });
           prev.forEach((m) => {
@@ -154,7 +170,19 @@ export const InRideChatModal: React.FC<InRideChatModalProps> = ({
     const text = (textToSend || inputText).trim();
     if (!text || !rideId) return;
 
-    const tempId = -Date.now();
+    const now = Date.now();
+    // Prevent double invocation from keyboard enter + touch button
+    if (isSendingRef.current || (lastSentTextRef.current === text && now - lastSentTimeRef.current < 1500)) {
+      return;
+    }
+    isSendingRef.current = true;
+    lastSentTextRef.current = text;
+    lastSentTimeRef.current = now;
+    setTimeout(() => {
+      isSendingRef.current = false;
+    }, 1000);
+
+    const tempId = -now;
     const newMsg: ChatMessage = {
       id: tempId,
       rideId,
@@ -162,11 +190,20 @@ export const InRideChatModal: React.FC<InRideChatModalProps> = ({
       senderName: currentUserName,
       senderRole: currentUserRole === 'ROLE_DRIVER' ? 'ROLE_DRIVER' : 'ROLE_RIDER',
       message: text,
-      timestamp: Date.now(),
+      timestamp: now,
     };
 
     // Optimistic UI update for instantaneous feel
-    setMessages((prev) => [...prev, newMsg]);
+    setMessages((prev) => {
+      const alreadyHas = prev.some(
+        (m) =>
+          m.message.trim().toLowerCase() === text.toLowerCase() &&
+          m.senderRole === newMsg.senderRole &&
+          now - (m.timestamp || now) < 3000
+      );
+      if (alreadyHas) return prev;
+      return [...prev, newMsg];
+    });
     setInputText('');
 
     // If WebSocket is connected, send via STOMP WebSocket

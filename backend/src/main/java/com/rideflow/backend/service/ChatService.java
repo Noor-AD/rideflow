@@ -23,13 +23,29 @@ public class ChatService {
     @Transactional
     public ChatMessageDto saveMessage(Long rideId, ChatMessageDto dto) {
         long ts = dto.getTimestamp() != null ? dto.getTimestamp() : System.currentTimeMillis();
+        String text = dto.getMessage() != null ? dto.getMessage().trim() : "";
+        String role = dto.getSenderRole() != null ? dto.getSenderRole() : "ROLE_RIDER";
+
+        // Deduplication: Check if an identical message was saved in the last 3.5 seconds
+        List<ChatMessage> recent = chatMessageRepository.findTop5ByRideIdOrderByTimestampDesc(rideId);
+        for (ChatMessage m : recent) {
+            if (m.getMessage() != null && m.getMessage().trim().equalsIgnoreCase(text)
+                    && m.getSenderRole() != null && m.getSenderRole().equals(role)
+                    && Math.abs(ts - m.getTimestamp()) < 3500) {
+                log.info("🛡️ Ignored duplicate chat message for ride {}: {}", rideId, text);
+                dto.setId(m.getId());
+                dto.setRideId(rideId);
+                dto.setTimestamp(m.getTimestamp());
+                return dto;
+            }
+        }
 
         ChatMessage entity = ChatMessage.builder()
                 .rideId(rideId)
                 .senderId(dto.getSenderId())
                 .senderName(dto.getSenderName() != null ? dto.getSenderName() : "User")
-                .senderRole(dto.getSenderRole() != null ? dto.getSenderRole() : "ROLE_RIDER")
-                .message(dto.getMessage())
+                .senderRole(role)
+                .message(text)
                 .timestamp(ts)
                 .build();
 

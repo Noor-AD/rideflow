@@ -10,5 +10,6 @@ import com.rideflow.backend.model.ChatMessage;
 @Repository
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
     List<ChatMessage> findByRideIdOrderByTimestampAsc(Long rideId);
+    List<ChatMessage> findTop5ByRideIdOrderByTimestampDesc(Long rideId);
 }
 

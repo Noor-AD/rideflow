@@ -75,12 +75,11 @@ export const InRideChatModal: React.FC<InRideChatModalProps> = ({
         return prev;
       }
 
-      // 2. Replace any matching optimistic message (negative ID or no ID)
+      // 2. Replace any matching optimistic message (negative ID or no ID) with matching text
       const optimisticIndex = prev.findIndex(
         (m) =>
           (!m.id || m.id < 0) &&
-          m.message.trim().toLowerCase() === incomingMsg.message.trim().toLowerCase() &&
-          (m.senderRole === incomingMsg.senderRole || m.senderId === incomingMsg.senderId)
+          m.message.trim().toLowerCase() === incomingMsg.message.trim().toLowerCase()
       );
 
       if (optimisticIndex !== -1) {
@@ -89,11 +88,12 @@ export const InRideChatModal: React.FC<InRideChatModalProps> = ({
         return updated;
       }
 
-      // 3. Prevent duplicate if a message with same text & role arrived recently (< 4 seconds)
+      // 3. Prevent duplicate if a confirmed message with same text arrived recently (< 4 seconds)
       const isRecentDuplicate = prev.some(
         (m) =>
+          m.id &&
+          m.id > 0 &&
           m.message.trim().toLowerCase() === incomingMsg.message.trim().toLowerCase() &&
-          (m.senderRole === incomingMsg.senderRole || m.senderId === incomingMsg.senderId) &&
           Math.abs((incomingMsg.timestamp || Date.now()) - (m.timestamp || Date.now())) < 4000
       );
 
@@ -305,6 +305,7 @@ export const InRideChatModal: React.FC<InRideChatModalProps> = ({
               }
               renderItem={({ item }) => {
                 const isMe =
+                  (!item.id || item.id < 0) ||
                   (Boolean(item.senderId) && Boolean(currentUserId) && item.senderId === currentUserId) ||
                   item.senderRole === currentUserRole;
                 return (

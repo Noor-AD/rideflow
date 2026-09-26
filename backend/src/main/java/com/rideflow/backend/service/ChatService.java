@@ -30,14 +30,11 @@ public class ChatService {
         List<ChatMessage> recent = chatMessageRepository.findTop5ByRideIdOrderByTimestampDesc(rideId);
         for (ChatMessage m : recent) {
             if (m.getMessage() != null && m.getMessage().trim().equalsIgnoreCase(text)
+                    && m.getSenderRole() != null && m.getSenderRole().equals(role)
                     && Math.abs(ts - m.getTimestamp()) < 3500) {
                 log.info("🛡️ Ignored duplicate chat message for ride {}: {}", rideId, text);
                 dto.setId(m.getId());
                 dto.setRideId(rideId);
-                dto.setSenderId(m.getSenderId());
-                dto.setSenderName(m.getSenderName());
-                dto.setSenderRole(m.getSenderRole());
-                dto.setMessage(m.getMessage());
                 dto.setTimestamp(m.getTimestamp());
                 return dto;
             }
@@ -57,10 +54,6 @@ public class ChatService {
 
         dto.setId(saved.getId());
         dto.setRideId(rideId);
-        dto.setSenderId(saved.getSenderId());
-        dto.setSenderName(saved.getSenderName());
-        dto.setSenderRole(saved.getSenderRole());
-        dto.setMessage(saved.getMessage());
         dto.setTimestamp(saved.getTimestamp());
         return dto;
     }

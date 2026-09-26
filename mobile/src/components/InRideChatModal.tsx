@@ -180,11 +180,11 @@ export const InRideChatModal: React.FC<InRideChatModalProps> = ({
     lastSentTimeRef.current = now;
     setTimeout(() => {
       isSendingRef.current = false;
-    }, 1000);
+    }, 800);
 
-    const tempId = -now;
+    setInputText('');
+
     const newMsg: ChatMessage = {
-      id: tempId,
       rideId,
       senderId: currentUserId,
       senderName: currentUserName,
@@ -192,19 +192,6 @@ export const InRideChatModal: React.FC<InRideChatModalProps> = ({
       message: text,
       timestamp: now,
     };
-
-    // Optimistic UI update for instantaneous feel
-    setMessages((prev) => {
-      const alreadyHas = prev.some(
-        (m) =>
-          m.message.trim().toLowerCase() === text.toLowerCase() &&
-          m.senderRole === newMsg.senderRole &&
-          now - (m.timestamp || now) < 3000
-      );
-      if (alreadyHas) return prev;
-      return [...prev, newMsg];
-    });
-    setInputText('');
 
     // If WebSocket is connected, send via STOMP WebSocket
     if (mobileWs.status === 'CONNECTED') {
@@ -217,6 +204,7 @@ export const InRideChatModal: React.FC<InRideChatModalProps> = ({
         })
         .catch((err) => {
           console.error('Failed to send message via REST fallback:', err);
+          setInputText(text); // Restore text on failure
         });
     }
   };

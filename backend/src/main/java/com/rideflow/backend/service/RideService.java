@@ -244,12 +244,22 @@ public class RideService {
 
     // Helper: Push WebSocket events to subscribers of /topic/rides/{rideId}
     private void broadcastRideEvent(Long rideId, String eventType, String message, RideResponse rideResponse) {
+        Double dLat = null;
+        Double dLng = null;
+        if (rideResponse != null && rideResponse.getDriverId() != null) {
+            DriverProfile driver = driverRepository.findById(rideResponse.getDriverId()).orElse(null);
+            if (driver != null) {
+                dLat = driver.getCurrentLatitude();
+                dLng = driver.getCurrentLongitude();
+            }
+        }
+
         RideEventPayload event = RideEventPayload.builder()
                 .eventType(eventType)
                 .rideId(rideId)
                 .status(rideResponse != null ? rideResponse.getStatus() : null)
-                .driverLat(rideResponse != null ? rideResponse.getPickupLat() : null)
-                .driverLng(rideResponse != null ? rideResponse.getPickupLng() : null)
+                .driverLat(dLat)
+                .driverLng(dLng)
                 .message(message)
                 .data(rideResponse)
                 .build();

@@ -146,17 +146,19 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           if (data.dropoff) {
             dropoffMarker.setLatLng([data.dropoff.latitude, data.dropoff.longitude]);
           }
+          var showDriver = data.driver && (data.rideStatus === 'ACCEPTED' || data.rideStatus === 'ARRIVED' || data.rideStatus === 'IN_PROGRESS');
+
           if (data.routeCoordinates && data.routeCoordinates.length > 1) {
             routeLine.setLatLngs(data.routeCoordinates);
             map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
-          } else if (data.pickup && data.dropoff && !data.driver) {
+          } else if (data.pickup && data.dropoff && !showDriver) {
             routeLine.setLatLngs([
               [data.pickup.latitude, data.pickup.longitude],
               [data.dropoff.latitude, data.dropoff.longitude]
             ]);
             map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
           }
-          if (data.driver) {
+          if (showDriver) {
             if (!driverMarker) {
               driverMarker = L.marker([data.driver.latitude, data.driver.longitude], { icon: driverIcon }).addTo(map);
             } else {

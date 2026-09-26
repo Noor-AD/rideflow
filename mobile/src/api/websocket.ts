@@ -113,10 +113,16 @@ class MobileWebSocketService {
       return () => sub?.unsubscribe();
     } else {
       let subInstance: any = null;
-      this.pendingSubscriptions.push(() => {
-        subInstance = executeSubscription();
-      });
+      let isCancelled = false;
+      const pendingAction = () => {
+        if (!isCancelled) {
+          subInstance = executeSubscription();
+        }
+      };
+      this.pendingSubscriptions.push(pendingAction);
       return () => {
+        isCancelled = true;
+        this.pendingSubscriptions = this.pendingSubscriptions.filter((fn) => fn !== pendingAction);
         if (subInstance) subInstance.unsubscribe();
       };
     }
@@ -149,10 +155,16 @@ class MobileWebSocketService {
       return () => sub?.unsubscribe();
     } else {
       let subInstance: any = null;
-      this.pendingSubscriptions.push(() => {
-        subInstance = executeSubscription();
-      });
+      let isCancelled = false;
+      const pendingAction = () => {
+        if (!isCancelled) {
+          subInstance = executeSubscription();
+        }
+      };
+      this.pendingSubscriptions.push(pendingAction);
       return () => {
+        isCancelled = true;
+        this.pendingSubscriptions = this.pendingSubscriptions.filter((fn) => fn !== pendingAction);
         if (subInstance) subInstance.unsubscribe();
       };
     }
@@ -186,10 +198,16 @@ class MobileWebSocketService {
       return () => sub?.unsubscribe();
     } else {
       let subInstance: any = null;
-      this.pendingSubscriptions.push(() => {
-        subInstance = executeSubscription();
-      });
+      let isCancelled = false;
+      const pendingAction = () => {
+        if (!isCancelled) {
+          subInstance = executeSubscription();
+        }
+      };
+      this.pendingSubscriptions.push(pendingAction);
       return () => {
+        isCancelled = true;
+        this.pendingSubscriptions = this.pendingSubscriptions.filter((fn) => fn !== pendingAction);
         if (subInstance) subInstance.unsubscribe();
       };
     }
@@ -235,10 +253,16 @@ class MobileWebSocketService {
       return () => sub?.unsubscribe();
     } else {
       let subInstance: any = null;
-      this.pendingSubscriptions.push(() => {
-        subInstance = executeSubscription();
-      });
+      let isCancelled = false;
+      const pendingAction = () => {
+        if (!isCancelled) {
+          subInstance = executeSubscription();
+        }
+      };
+      this.pendingSubscriptions.push(pendingAction);
       return () => {
+        isCancelled = true;
+        this.pendingSubscriptions = this.pendingSubscriptions.filter((fn) => fn !== pendingAction);
         if (subInstance) subInstance.unsubscribe();
       };
     }

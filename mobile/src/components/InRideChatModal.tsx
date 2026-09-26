@@ -63,6 +63,46 @@ export const InRideChatModal: React.FC<InRideChatModalProps> = ({
   const cannedMessages =
     currentUserRole === 'ROLE_DRIVER' ? driverCannedMessages : riderCannedMessages;
 
+  // Helper: Deduplicate and merge incoming or saved messages
+  const upsertMessage = (incomingMsg: ChatMessage) => {
+    setMessages((prev) => {
+      // 1. Prevent duplicate if already exists by confirmed positive DB ID
+      if (incomingMsg.id && incomingMsg.id > 0 && prev.some((m) => m.id === incomingMsg.id)) {
+        return prev;
+      }
+
+      // 2. Replace any matching optimistic message (negative ID or no ID)
+      const optimisticIndex = prev.findIndex(
+        (m) =>
+          (!m.id || m.id < 0) &&
+          m.message.trim() === incomingMsg.message.trim() &&
+          (m.senderRole === incomingMsg.senderRole || m.senderId === incomingMsg.senderId)
+      );
+
+      if (optimisticIndex !== -1) {
+        const updated = [...prev];
+        updated[optimisticIndex] = incomingMsg;
+        return updated;
+      }
+
+      // 3. Prevent duplicate if a confirmed message with same text & role arrived recently (< 6 seconds)
+      const isRecentDuplicate = prev.some(
+        (m) =>
+          m.id &&
+          m.id > 0 &&
+          m.message.trim() === incomingMsg.message.trim() &&
+          (m.senderRole === incomingMsg.senderRole || m.senderId === incomingMsg.senderId) &&
+          Math.abs((incomingMsg.timestamp || Date.now()) - (m.timestamp || Date.now())) < 6000
+      );
+
+      if (isRecentDuplicate) {
+        return prev;
+      }
+
+      return [...prev, incomingMsg];
+    });
+  };
+
   // 1. Load chat history & subscribe to STOMP WebSockets
   useEffect(() => {
     if (!visible || !rideId) return;
@@ -70,7 +110,21 @@ export const InRideChatModal: React.FC<InRideChatModalProps> = ({
     // A. Fetch existing history from REST
     chatApi.getMessages(rideId)
       .then((history) => {
-        setMessages(history);
+        setMessages((prev) => {
+          const map = new Map<number, ChatMessage>();
+          (history || []).forEach((m) => {
+            if (m.id) map.set(m.id, m);
+          });
+          prev.forEach((m) => {
+            if (m.id && m.id > 0 && !map.has(m.id)) {
+              map.set(m.id, m);
+            }
+          });
+          const pending = prev.filter((m) => !m.id || m.id < 0);
+          return [...Array.from(map.values()), ...pending].sort(
+            (a, b) => (a.timestamp || 0) - (b.timestamp || 0)
+          );
+        });
       })
       .catch((err) => {
         console.warn('Failed to load chat history:', err);
@@ -78,27 +132,7 @@ export const InRideChatModal: React.FC<InRideChatModalProps> = ({
 
     // B. Subscribe to live WebSocket messages for this ride
     const unsubscribe = mobileWs.subscribeToRideChat(rideId, (incomingMsg) => {
-      setMessages((prev) => {
-        // Prevent duplicates if already in state by ID
-        if (incomingMsg.id && prev.some((m) => m.id === incomingMsg.id)) {
-          return prev;
-        }
-
-        // Replace any matching optimistic message (which has no id yet)
-        const optimisticIndex = prev.findIndex(
-          (m) =>
-            !m.id &&
-            m.senderId === incomingMsg.senderId &&
-            m.message === incomingMsg.message
-        );
-        if (optimisticIndex !== -1) {
-          const updated = [...prev];
-          updated[optimisticIndex] = incomingMsg;
-          return updated;
-        }
-
-        return [...prev, incomingMsg];
-      });
+      upsertMessage(incomingMsg);
     });
 
     return () => {
@@ -120,7 +154,9 @@ export const InRideChatModal: React.FC<InRideChatModalProps> = ({
     const text = (textToSend || inputText).trim();
     if (!text || !rideId) return;
 
+    const tempId = -Date.now();
     const newMsg: ChatMessage = {
+      id: tempId,
       rideId,
       senderId: currentUserId,
       senderName: currentUserName,
@@ -133,23 +169,14 @@ export const InRideChatModal: React.FC<InRideChatModalProps> = ({
     setMessages((prev) => [...prev, newMsg]);
     setInputText('');
 
-    // If WebSocket is connected, send via STOMP WebSocket ONLY
+    // If WebSocket is connected, send via STOMP WebSocket
     if (mobileWs.status === 'CONNECTED') {
       mobileWs.sendChatMessage(rideId, newMsg);
     } else {
       // Fallback to REST only when WebSocket is offline
       chatApi.sendMessage(rideId, newMsg)
         .then((saved) => {
-          setMessages((prev) => {
-            if (saved.id && prev.some((m) => m.id === saved.id)) return prev;
-            const idx = prev.findIndex((m) => !m.id && m.message === saved.message);
-            if (idx !== -1) {
-              const updated = [...prev];
-              updated[idx] = saved;
-              return updated;
-            }
-            return [...prev, saved];
-          });
+          upsertMessage(saved);
         })
         .catch((err) => {
           console.error('Failed to send message via REST fallback:', err);
@@ -240,7 +267,9 @@ export const InRideChatModal: React.FC<InRideChatModalProps> = ({
                 </View>
               }
               renderItem={({ item }) => {
-                const isMe = item.senderId === currentUserId;
+                const isMe =
+                  (Boolean(item.senderId) && Boolean(currentUserId) && item.senderId === currentUserId) ||
+                  item.senderRole === currentUserRole;
                 return (
                   <View
                     style={[

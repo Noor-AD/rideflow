@@ -245,23 +245,29 @@ export const RiderScreen: React.FC = () => {
         };
       });
 
-      const dLat = event.driverLat || event.data?.driverLat;
-      const dLng = event.driverLng || event.data?.driverLng;
-      if (dLat && dLng) {
-        setDriverLocation({
-          latitude: dLat,
-          longitude: dLng,
-        });
+      if (status === 'ACCEPTED' || status === 'ARRIVED' || status === 'IN_PROGRESS') {
+        const dLat = event.driverLat || event.data?.driverLat;
+        const dLng = event.driverLng || event.data?.driverLng;
+        if (dLat && dLng) {
+          setDriverLocation({
+            latitude: dLat,
+            longitude: dLng,
+          });
+        }
+      } else {
+        setDriverLocation(null);
       }
     });
 
     // B. Subscribe to high-frequency live driver GPS coordinates
     const unsubLocation = mobileWs.subscribeToDriverLocation(activeRide.id, (loc) => {
-      console.log('📍 Live driver GPS coordinate received:', loc);
-      setDriverLocation({
-        latitude: loc.latitude,
-        longitude: loc.longitude,
-      });
+      // Only display driver location once driver has accepted
+      if (activeRide.status === 'ACCEPTED' || activeRide.status === 'ARRIVED' || activeRide.status === 'IN_PROGRESS') {
+        setDriverLocation({
+          latitude: loc.latitude,
+          longitude: loc.longitude,
+        });
+      }
     });
 
     // C. Subscribe to live in-ride chat
@@ -345,6 +351,7 @@ export const RiderScreen: React.FC = () => {
   // 4. Request / Book a Ride
   const handleBookRide = async () => {
     setIsBooking(true);
+    setDriverLocation(null);
     try {
       const ride = await rideApi.bookRide({
         pickupLat: pickupCoords.latitude,

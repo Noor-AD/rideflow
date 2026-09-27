@@ -129,10 +129,10 @@ export const ActiveRidesTable: React.FC<ActiveRidesTableProps> = ({
                       </div>
                       <div>
                         <p className="font-semibold text-white text-xs">
-                          {ride.rider?.name || (ride as any).riderName || 'Passenger'}
+                          {ride.riderName || ride.rider?.name || 'Passenger'}
                         </p>
                         <p className="text-[11px] text-slate-500">
-                          {ride.rider?.phone || (ride as any).riderPhone || 'No phone'}
+                          {ride.riderPhone || ride.rider?.phone || 'No phone'}
                         </p>
                       </div>
                     </div>
@@ -140,17 +140,17 @@ export const ActiveRidesTable: React.FC<ActiveRidesTableProps> = ({
 
                   {/* Driver */}
                   <td className="px-6 py-4">
-                    {ride.driver ? (
+                    {ride.driverName || ride.driver ? (
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xs text-emerald-400">
                           <Car className="w-3.5 h-3.5" />
                         </div>
                         <div>
                           <p className="font-semibold text-white text-xs">
-                            {ride.driver.user?.name || (ride.driver as any).name || 'Assigned Driver'}
+                            {ride.driverName || ride.driver?.user?.name || 'Assigned Driver'}
                           </p>
                           <p className="text-[11px] text-slate-400">
-                            {ride.driver.vehicleType || 'Vehicle'} ({ride.driver.vehicleNumber || 'N/A'})
+                            {ride.vehicleModel || ride.driver?.vehicleModel || ride.vehicleType || 'Vehicle'} ({ride.vehiclePlate || ride.driver?.vehiclePlate || ride.driver?.vehicleNumber || 'N/A'})
                           </p>
                         </div>
                       </div>

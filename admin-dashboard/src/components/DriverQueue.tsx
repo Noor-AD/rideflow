@@ -76,11 +76,11 @@ export const DriverQueue: React.FC<DriverQueueProps> = ({
                       </div>
                       <div>
                         <p className="font-semibold text-white">
-                          {driver.user?.name || (driver as any).name || `Driver #${driver.id}`}
+                          {driver.driverName || driver.user?.name || (driver as any).name || `Driver #${driver.id}`}
                         </p>
                         <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
                           <Phone className="w-3 h-3 text-slate-500" />
-                          {driver.user?.phone || 'No phone'}
+                          {driver.driverPhone || driver.user?.phone || 'No phone'}
                         </p>
                       </div>
                     </div>
@@ -90,13 +90,13 @@ export const DriverQueue: React.FC<DriverQueueProps> = ({
                   <td className="px-6 py-4">
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700">
                       <Car className="w-3.5 h-3.5 text-emerald-400" />
-                      {driver.vehicleType}
+                      {driver.vehicleModel || driver.vehicleType}
                     </span>
                   </td>
 
                   {/* Vehicle Plate */}
                   <td className="px-6 py-4 font-mono text-xs font-semibold text-slate-200">
-                    {driver.vehicleNumber}
+                    {driver.vehiclePlate || driver.vehicleNumber || 'N/A'}
                   </td>
 
                   {/* License */}

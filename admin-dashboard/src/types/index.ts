@@ -19,19 +19,29 @@ export interface AuthResponse {
 }
 
 // 2. Driver & Vehicle Models
-export type VehicleType = 'SEDAN' | 'SUV' | 'AUTO' | 'BIKE';
+export type VehicleType = 'SEDAN' | 'SUV' | 'AUTO' | 'BIKE' | 'ECONOMY' | 'PREMIUM';
 
 export interface DriverProfile {
   id: number;
-  user: User;
+  userId?: number;
+  user?: User;
+  driverName?: string;
+  driverPhone?: string;
   licenseNumber: string;
   vehicleType: VehicleType;
-  vehicleNumber: string;
-  isAvailable: boolean;
-  isVerified: boolean;
+  vehicleNumber?: string;
+  vehiclePlate?: string;
+  vehicleModel?: string;
+  isAvailable?: boolean;
+  isVerified?: boolean;
+  online?: boolean;
+  approvalStatus?: string;
   currentLat?: number;
   currentLng?: number;
+  latitude?: number;
+  longitude?: number;
   rating: number;
+  totalRides?: number;
 }
 
 // 3. Ride & Trip State Machine
@@ -45,7 +55,16 @@ export type RideStatus =
 
 export interface Ride {
   id: number;
-  rider: User;
+  riderId?: number;
+  riderName?: string;
+  riderPhone?: string;
+  driverId?: number;
+  driverName?: string;
+  driverPhone?: string;
+  vehiclePlate?: string;
+  vehicleModel?: string;
+  vehicleType?: string;
+  rider?: User;
   driver?: DriverProfile;
   pickupLat: number;
   pickupLng: number;
@@ -53,11 +72,20 @@ export interface Ride {
   dropoffLat: number;
   dropoffLng: number;
   dropoffAddress?: string;
-  status: RideStatus;
+  distanceKm?: number;
+  durationMinutes?: number;
+  estimatedFare?: number;
+  actualFare?: number;
   fare: number;
   otp?: string;
+  status: RideStatus;
+  paymentMethod?: string;
+  paymentStatus?: string;
   createdAt: string;
   updatedAt?: string;
+  acceptedAt?: string;
+  startedAt?: string;
+  completedAt?: string;
 }
 
 // 4. Payment & Commission Types

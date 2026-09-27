@@ -45,11 +45,17 @@ export const LiveFleetMap: React.FC<LiveFleetMapProps> = ({
   // Default Map Center: Bengaluru, India (or your city)
   const defaultCenter: [number, number] = [12.9716, 77.5946];
 
+  const getDriverLat = (d: DriverProfile) => d.latitude ?? d.currentLat;
+  const getDriverLng = (d: DriverProfile) => d.longitude ?? d.currentLng;
+  const isDriverAvailable = (d: DriverProfile) => d.online ?? d.isAvailable ?? true;
+
   // If there are drivers with coordinates, center on the first driver
-  const firstDriverWithCoords = drivers.find((d) => d.currentLat && d.currentLng);
+  const firstDriverWithCoords = drivers.find((d) => getDriverLat(d) != null && getDriverLng(d) != null);
   const centerPosition: [number, number] = firstDriverWithCoords
-    ? [firstDriverWithCoords.currentLat!, firstDriverWithCoords.currentLng!]
+    ? [getDriverLat(firstDriverWithCoords)!, getDriverLng(firstDriverWithCoords)!]
     : defaultCenter;
+
+  const activeDriverCount = drivers.filter((d) => getDriverLat(d) != null && getDriverLng(d) != null).length;
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm flex flex-col h-[650px]">
@@ -64,7 +70,7 @@ export const LiveFleetMap: React.FC<LiveFleetMapProps> = ({
             Live Telemetry Grid
           </h2>
           <span className="text-xs text-slate-400">
-            ({drivers.filter((d) => d.currentLat).length} Taxis Active On Map)
+            ({activeDriverCount} Taxis Active On Map)
           </span>
         </div>
 
@@ -101,40 +107,48 @@ export const LiveFleetMap: React.FC<LiveFleetMapProps> = ({
 
           {/* Render Driver Markers */}
           {drivers
-            .filter((d) => d.currentLat && d.currentLng)
-            .map((driver) => (
-              <Marker
-                key={driver.id}
-                position={[driver.currentLat!, driver.currentLng!]}
-                icon={createDriverIcon(driver.isAvailable)}
-              >
-                <Popup className="custom-popup">
-                  <div className="p-2 text-slate-800">
-                    <p className="font-bold text-sm">
-                      {driver.user?.name || (driver as any).name || `Driver #${driver.id}`}
-                    </p>
-                    <p className="text-xs text-slate-600">
-                      Vehicle: <span className="font-semibold">{driver.vehicleType}</span> ({driver.vehicleNumber})
-                    </p>
-                    <p className="text-xs text-slate-600">
-                      Phone: <span className="font-semibold">{driver.user?.phone || 'No phone'}</span>
-                    </p>
-                    <div className="mt-2 pt-1 border-t border-slate-200 flex items-center justify-between text-xs">
-                      <span className="text-emerald-700 font-semibold">
-                        ⭐ {driver.rating.toFixed(1)}
-                      </span>
-                      <span
-                        className={`px-1.5 py-0.5 rounded font-bold text-[10px] ${
-                          driver.isAvailable ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
-                        }`}
-                      >
-                        {driver.isAvailable ? 'AVAILABLE' : 'BUSY'}
-                      </span>
+            .filter((d) => getDriverLat(d) != null && getDriverLng(d) != null)
+            .map((driver) => {
+              const lat = getDriverLat(driver)!;
+              const lng = getDriverLng(driver)!;
+              const available = isDriverAvailable(driver);
+              const name = driver.driverName || driver.user?.name || `Driver #${driver.id}`;
+              const phone = driver.driverPhone || driver.user?.phone || 'No phone';
+              const plate = driver.vehiclePlate || driver.vehicleNumber || 'N/A';
+              const model = driver.vehicleModel || driver.vehicleType || 'Vehicle';
+
+              return (
+                <Marker
+                  key={driver.id}
+                  position={[lat, lng]}
+                  icon={createDriverIcon(available)}
+                >
+                  <Popup className="custom-popup">
+                    <div className="p-2 text-slate-800">
+                      <p className="font-bold text-sm">{name}</p>
+                      <p className="text-xs text-slate-600">
+                        Vehicle: <span className="font-semibold">{model}</span> ({plate})
+                      </p>
+                      <p className="text-xs text-slate-600">
+                        Phone: <span className="font-semibold">{phone}</span>
+                      </p>
+                      <div className="mt-2 pt-1 border-t border-slate-200 flex items-center justify-between text-xs">
+                        <span className="text-emerald-700 font-semibold">
+                          ⭐ {driver.rating?.toFixed(1) || '5.0'}
+                        </span>
+                        <span
+                          className={`px-1.5 py-0.5 rounded font-bold text-[10px] ${
+                            available ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
+                          }`}
+                        >
+                          {available ? 'AVAILABLE' : 'BUSY'}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
+                  </Popup>
+                </Marker>
+              );
+            })}
         </MapContainer>
       </div>
     </div>

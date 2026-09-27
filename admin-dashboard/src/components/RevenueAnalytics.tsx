@@ -15,10 +15,14 @@ import { CircleDollarSign, TrendingUp, Wallet } from 'lucide-react';
 import type { DashboardStats } from '../types';
 
 interface RevenueAnalyticsProps {
-  stats: DashboardStats;
+  stats?: DashboardStats;
 }
 
 export const RevenueAnalytics: React.FC<RevenueAnalyticsProps> = ({ stats }) => {
+  const totalRevenue = Number(stats?.totalRevenue ?? 0);
+  const platformCommission = Number(stats?.platformCommission ?? 0);
+  const driverPayout = totalRevenue * 0.8;
+
   // Weekly simulation data based on current platform stats
   const weeklyData = [
     { day: 'Mon', gross: 24000, driverPayout: 19200, commission: 4800 },
@@ -44,7 +48,7 @@ export const RevenueAnalytics: React.FC<RevenueAnalyticsProps> = ({ stats }) => 
             </div>
           </div>
           <h3 className="text-2xl font-bold text-white mt-2">
-            ₹{stats.totalRevenue.toLocaleString()}
+            ₹{totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </h3>
           <p className="text-xs text-slate-500 mt-1">100% Gross Passenger Payments</p>
         </div>
@@ -59,7 +63,7 @@ export const RevenueAnalytics: React.FC<RevenueAnalyticsProps> = ({ stats }) => 
             </div>
           </div>
           <h3 className="text-2xl font-bold text-white mt-2">
-            ₹{(stats.totalRevenue * 0.8).toLocaleString()}
+            ₹{driverPayout.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </h3>
           <p className="text-xs text-slate-500 mt-1">Direct Driver Wallet Settlements</p>
         </div>
@@ -74,7 +78,7 @@ export const RevenueAnalytics: React.FC<RevenueAnalyticsProps> = ({ stats }) => 
             </div>
           </div>
           <h3 className="text-2xl font-bold text-white mt-2">
-            ₹{stats.platformCommission.toLocaleString()}
+            ₹{platformCommission.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </h3>
           <p className="text-xs text-slate-500 mt-1">Net RideFlow Retained Revenue</p>
         </div>

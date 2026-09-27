@@ -9,15 +9,21 @@ import {
 import type { DashboardStats } from '../types';
 
 interface StatsOverviewProps {
-  stats: DashboardStats;
+  stats?: DashboardStats;
 }
 
 export const StatsOverview: React.FC<StatsOverviewProps> = ({ stats }) => {
+  const safeRevenue = Number(stats?.totalRevenue ?? 0);
+  const safeCommission = Number(stats?.platformCommission ?? 0);
+  const safeActiveDrivers = Number(stats?.activeDrivers ?? 0);
+  const safeTotalRides = Number(stats?.totalRides ?? 0);
+  const safePendingApprovals = Number(stats?.pendingApprovals ?? 0);
+
   const statCards = [
     {
       title: 'Total Gross Revenue',
-      value: `₹${stats.totalRevenue.toLocaleString()}`,
-      subtitle: `Platform Cut (20%): ₹${stats.platformCommission.toLocaleString()}`,
+      value: `₹${safeRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      subtitle: `Platform Cut (20%): ₹${safeCommission.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       icon: CircleDollarSign,
       color: 'text-emerald-400',
       bgColor: 'bg-emerald-500/10 border-emerald-500/20',
@@ -25,7 +31,7 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ stats }) => {
     },
     {
       title: 'Active Fleet Online',
-      value: stats.activeDrivers.toString(),
+      value: safeActiveDrivers.toString(),
       subtitle: 'Available for immediate dispatch',
       icon: Car,
       color: 'text-blue-400',
@@ -34,7 +40,7 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ stats }) => {
     },
     {
       title: 'Completed Trips',
-      value: stats.totalRides.toString(),
+      value: safeTotalRides.toString(),
       subtitle: '100% trip lifecycle verified',
       icon: TrendingUp,
       color: 'text-indigo-400',
@@ -43,12 +49,12 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({ stats }) => {
     },
     {
       title: 'Pending Verifications',
-      value: stats.pendingApprovals.toString(),
+      value: safePendingApprovals.toString(),
       subtitle: 'Awaiting license / RC review',
       icon: UserCheck,
       color: 'text-amber-400',
       bgColor: 'bg-amber-500/10 border-amber-500/20',
-      trend: stats.pendingApprovals > 0 ? 'Requires Action' : 'All clear',
+      trend: safePendingApprovals > 0 ? 'Requires Action' : 'All clear',
     },
   ];
 

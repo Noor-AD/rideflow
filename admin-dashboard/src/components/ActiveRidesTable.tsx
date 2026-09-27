@@ -15,13 +15,16 @@ interface ActiveRidesTableProps {
 }
 
 export const ActiveRidesTable: React.FC<ActiveRidesTableProps> = ({
-  rides,
+  rides = [],
   isLoading = false,
 }) => {
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
 
+  const safeRides = Array.isArray(rides) ? rides : [];
+
   // Filter rides based on dropdown selection
-  const filteredRides = rides.filter((ride) => {
+  const filteredRides = safeRides.filter((ride) => {
+    if (!ride) return false;
     if (filterStatus === 'ALL') return true;
     if (filterStatus === 'ACTIVE') {
       return ['REQUESTED', 'ACCEPTED', 'ARRIVED', 'IN_PROGRESS'].includes(ride.status);
@@ -80,7 +83,7 @@ export const ActiveRidesTable: React.FC<ActiveRidesTableProps> = ({
             onChange={(e) => setFilterStatus(e.target.value)}
             className="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-1.5 focus:outline-none focus:border-emerald-500 cursor-pointer"
           >
-            <option value="ALL">All Trips ({rides.length})</option>
+            <option value="ALL">All Trips ({safeRides.length})</option>
             <option value="ACTIVE">Active Only</option>
             <option value="REQUESTED">Requested</option>
             <option value="ACCEPTED">Accepted</option>
@@ -114,82 +117,93 @@ export const ActiveRidesTable: React.FC<ActiveRidesTableProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/80">
-              {filteredRides.map((ride) => (
-                <tr key={ride.id} className="hover:bg-slate-800/40 transition-colors">
-                  {/* ID */}
-                  <td className="px-6 py-4 font-mono font-bold text-xs text-slate-200">
-                    #{ride.id}
-                  </td>
+              {filteredRides.map((ride) => {
+                const numericFare = Number(ride.fare ?? ride.actualFare ?? ride.estimatedFare ?? 0);
+                const pLat = ride.pickupLat != null ? Number(ride.pickupLat).toFixed(4) : null;
+                const pLng = ride.pickupLng != null ? Number(ride.pickupLng).toFixed(4) : null;
+                const dLat = ride.dropoffLat != null ? Number(ride.dropoffLat).toFixed(4) : null;
+                const dLng = ride.dropoffLng != null ? Number(ride.dropoffLng).toFixed(4) : null;
 
-                  {/* Rider */}
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300">
-                        <User className="w-3.5 h-3.5 text-slate-400" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-white text-xs">
-                          {ride.riderName || ride.rider?.name || 'Passenger'}
-                        </p>
-                        <p className="text-[11px] text-slate-500">
-                          {ride.riderPhone || ride.rider?.phone || 'No phone'}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
+                const pickupStr = ride.pickupAddress || (pLat && pLng ? `${pLat}, ${pLng}` : 'Pickup Location');
+                const dropoffStr = ride.dropoffAddress || (dLat && dLng ? `${dLat}, ${dLng}` : 'Destination Location');
 
-                  {/* Driver */}
-                  <td className="px-6 py-4">
-                    {ride.driverName || ride.driver ? (
+                return (
+                  <tr key={ride.id} className="hover:bg-slate-800/40 transition-colors">
+                    {/* ID */}
+                    <td className="px-6 py-4 font-mono font-bold text-xs text-slate-200">
+                      #{ride.id}
+                    </td>
+
+                    {/* Rider */}
+                    <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xs text-emerald-400">
-                          <Car className="w-3.5 h-3.5" />
+                        <div className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300">
+                          <User className="w-3.5 h-3.5 text-slate-400" />
                         </div>
                         <div>
                           <p className="font-semibold text-white text-xs">
-                            {ride.driverName || ride.driver?.user?.name || 'Assigned Driver'}
+                            {ride.riderName || ride.rider?.name || 'Passenger'}
                           </p>
-                          <p className="text-[11px] text-slate-400">
-                            {ride.vehicleModel || ride.driver?.vehicleModel || ride.vehicleType || 'Vehicle'} ({ride.vehiclePlate || ride.driver?.vehiclePlate || ride.driver?.vehicleNumber || 'N/A'})
+                          <p className="text-[11px] text-slate-500">
+                            {ride.riderPhone || ride.rider?.phone || 'No phone'}
                           </p>
                         </div>
                       </div>
-                    ) : (
-                      <span className="text-xs text-amber-400/80 italic">Searching driver...</span>
-                    )}
-                  </td>
+                    </td>
 
-                  {/* Route */}
-                  <td className="px-6 py-4 max-w-xs">
-                    <div className="text-xs space-y-1">
-                      <div className="flex items-center gap-1.5 text-slate-300 truncate">
-                        <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
-                        <span className="truncate">{ride.pickupAddress || `${ride.pickupLat.toFixed(4)}, ${ride.pickupLng.toFixed(4)}`}</span>
+                    {/* Driver */}
+                    <td className="px-6 py-4">
+                      {ride.driverName || ride.driver ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xs text-emerald-400">
+                            <Car className="w-3.5 h-3.5" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-white text-xs">
+                              {ride.driverName || ride.driver?.user?.name || 'Assigned Driver'}
+                            </p>
+                            <p className="text-[11px] text-slate-400">
+                              {ride.vehicleModel || ride.driver?.vehicleModel || ride.vehicleType || 'Vehicle'} ({ride.vehiclePlate || ride.driver?.vehiclePlate || ride.driver?.vehicleNumber || 'N/A'})
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-amber-400/80 italic">Searching driver...</span>
+                      )}
+                    </td>
+
+                    {/* Route */}
+                    <td className="px-6 py-4 max-w-xs">
+                      <div className="text-xs space-y-1">
+                        <div className="flex items-center gap-1.5 text-slate-300 truncate" title={pickupStr}>
+                          <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
+                          <span className="truncate">{pickupStr}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-slate-400 truncate" title={dropoffStr}>
+                          <MapPin className="w-3 h-3 text-rose-400 shrink-0" />
+                          <span className="truncate">{dropoffStr}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5 text-slate-400 truncate">
-                        <MapPin className="w-3 h-3 text-rose-400 shrink-0" />
-                        <span className="truncate">{ride.dropoffAddress || `${ride.dropoffLat.toFixed(4)}, ${ride.dropoffLng.toFixed(4)}`}</span>
-                      </div>
-                    </div>
-                  </td>
+                    </td>
 
-                  {/* Fare */}
-                  <td className="px-6 py-4 font-semibold text-emerald-400 text-xs">
-                    ₹{ride.fare.toFixed(2)}
-                  </td>
+                    {/* Fare */}
+                    <td className="px-6 py-4 font-semibold text-emerald-400 text-xs">
+                      ₹{numericFare.toFixed(2)}
+                    </td>
 
-                  {/* Status Badge */}
-                  <td className="px-6 py-4">
-                    <span
-                      className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${getStatusBadge(
-                        ride.status
-                      )}`}
-                    >
-                      {ride.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+                    {/* Status Badge */}
+                    <td className="px-6 py-4">
+                      <span
+                        className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${getStatusBadge(
+                          ride.status
+                        )}`}
+                      >
+                        {ride.status}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

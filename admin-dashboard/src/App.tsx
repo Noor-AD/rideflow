@@ -7,6 +7,7 @@ import { DriverQueue } from './components/DriverQueue';
 import { ActiveRidesTable } from './components/ActiveRidesTable';
 import { RevenueAnalytics } from './components/RevenueAnalytics';
 import { LoginScreen } from './components/LoginScreen';
+import { SectionErrorBoundary } from './components/SectionErrorBoundary';
 import { adminApi } from './api/client';
 import { wsService, type ConnectionStatus } from './api/websocket';
 import type { DashboardStats, DriverProfile, Ride, AuthResponse } from './types';
@@ -67,97 +68,23 @@ export const App: React.FC = () => {
         adminApi.getAllRides(),
       ]);
 
-      if (statsRes.status === 'fulfilled') {
+      if (statsRes.status === 'fulfilled' && statsRes.value) {
         setStats(statsRes.value);
-      } else {
-        // Fallback default metrics if backend table is fresh
-        setStats({
-          totalRides: 14,
-          activeDrivers: 3,
-          pendingApprovals: 1,
-          totalRevenue: 5450,
-          platformCommission: 1090,
-        });
       }
 
-      if (driversRes.status === 'fulfilled') {
+      if (driversRes.status === 'fulfilled' && Array.isArray(driversRes.value)) {
         setDrivers(driversRes.value);
-      } else {
-        // Demo Bangalore drivers if backend drivers table is empty
-        setDrivers([
-          {
-            id: 1,
-            user: { id: 2, name: 'Rajesh Kumar', email: 'rajesh@rideflow.test', phone: '+919876543211', roles: ['ROLE_DRIVER'] },
-            licenseNumber: 'KA-01-2023-0098',
-            vehicleType: 'SEDAN',
-            vehicleNumber: 'KA-01-AB-1234',
-            isAvailable: true,
-            isVerified: true,
-            currentLat: 12.9716,
-            currentLng: 77.5946,
-            rating: 4.9,
-          },
-          {
-            id: 2,
-            user: { id: 3, name: 'Anil Sharma', email: 'anil@rideflow.test', phone: '+919876543212', roles: ['ROLE_DRIVER'] },
-            licenseNumber: 'KA-03-2022-5541',
-            vehicleType: 'SUV',
-            vehicleNumber: 'KA-03-XY-9876',
-            isAvailable: false,
-            isVerified: true,
-            currentLat: 12.9352,
-            currentLng: 77.6245,
-            rating: 4.7,
-          },
-        ]);
       }
 
-      if (pendingRes.status === 'fulfilled') {
+      if (pendingRes.status === 'fulfilled' && Array.isArray(pendingRes.value)) {
         setPendingDrivers(pendingRes.value);
-      } else {
-        setPendingDrivers([
-          {
-            id: 3,
-            user: { id: 4, name: 'Vikram Singh', email: 'vikram@rideflow.test', phone: '+919876543213', roles: ['ROLE_DRIVER'] },
-            licenseNumber: 'KA-05-2024-1123',
-            vehicleType: 'AUTO',
-            vehicleNumber: 'KA-05-MN-4321',
-            isAvailable: false,
-            isVerified: false,
-            rating: 5.0,
-          },
-        ]);
       }
 
-      if (ridesRes.status === 'fulfilled') {
+      if (ridesRes.status === 'fulfilled' && Array.isArray(ridesRes.value)) {
         setRides(ridesRes.value);
-      } else {
-        setRides([
-          {
-            id: 101,
-            rider: { id: 5, name: 'Priya Patel', email: 'priya@rideflow.test', phone: '+919876543214', roles: ['ROLE_RIDER'] },
-            driver: {
-              id: 1,
-              user: { id: 2, name: 'Rajesh Kumar', email: 'rajesh@rideflow.test', phone: '+919876543211', roles: ['ROLE_DRIVER'] },
-              licenseNumber: 'KA-01-2023-0098',
-              vehicleType: 'SEDAN',
-              vehicleNumber: 'KA-01-AB-1234',
-              isAvailable: false,
-              isVerified: true,
-              rating: 4.9,
-            },
-            pickupLat: 12.9716,
-            pickupLng: 77.5946,
-            pickupAddress: 'MG Road Metro Station',
-            dropoffLat: 12.9352,
-            dropoffLng: 77.6245,
-            dropoffAddress: 'Koramangala 5th Block',
-            status: 'IN_PROGRESS',
-            fare: 450.0,
-            createdAt: new Date().toISOString(),
-          },
-        ]);
       }
+    } catch (err) {
+      console.warn('Dashboard data fetch warning:', err);
     } finally {
       setIsLoading(false);
     }
@@ -180,7 +107,6 @@ export const App: React.FC = () => {
     if (!isAuthenticated) return;
 
     // Initial HTTP fetch
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadDashboardData();
 
     // Connect to WebSocket STOMP broker
@@ -193,7 +119,7 @@ export const App: React.FC = () => {
       setDrivers((prevDrivers) =>
         prevDrivers.map((d) =>
           d.id === payload.driverId
-            ? { ...d, currentLat: payload.latitude, currentLng: payload.longitude }
+            ? { ...d, currentLat: payload.latitude, currentLng: payload.longitude, latitude: payload.latitude, longitude: payload.longitude }
             : d
         )
       );
@@ -245,16 +171,15 @@ export const App: React.FC = () => {
 
       // Add to active fleet
       if (approved) {
-        setDrivers((prev) => [...prev, { ...approved, isVerified: true, isAvailable: true }]);
+        setDrivers((prev) => [...prev, { ...approved, isVerified: true, isAvailable: true, online: true }]);
         setStats((prev) => ({
           ...prev,
-          activeDrivers: prev.activeDrivers + 1,
-          pendingApprovals: Math.max(0, prev.pendingApprovals - 1),
+          activeDrivers: (prev.activeDrivers ?? 0) + 1,
+          pendingApprovals: Math.max(0, (prev.pendingApprovals ?? 0) - 1),
         }));
       }
     } catch (err) {
       console.error('Failed to verify driver partner:', err);
-      // Optimistically update UI if offline/testing
       setPendingDrivers((prev) => prev.filter((d) => d.id !== driverId));
     }
   };
@@ -317,36 +242,52 @@ export const App: React.FC = () => {
           {/* TAB 1: OVERVIEW */}
           {currentTab === 'overview' && (
             <div className="space-y-6">
-              <StatsOverview stats={stats} />
+              <SectionErrorBoundary fallbackTitle="Overview Metrics Unavailable">
+                <StatsOverview stats={stats} />
+              </SectionErrorBoundary>
+
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                <LiveFleetMap drivers={drivers} activeRides={rides} />
-                <ActiveRidesTable rides={rides} isLoading={isLoading} />
+                <SectionErrorBoundary fallbackTitle="Live Map Loading Issue">
+                  <LiveFleetMap drivers={drivers} activeRides={rides} />
+                </SectionErrorBoundary>
+
+                <SectionErrorBoundary fallbackTitle="Dispatch Trips Loading Issue">
+                  <ActiveRidesTable rides={rides} isLoading={isLoading} />
+                </SectionErrorBoundary>
               </div>
             </div>
           )}
 
           {/* TAB 2: LIVE FLEET MAP */}
           {currentTab === 'map' && (
-            <LiveFleetMap drivers={drivers} activeRides={rides} />
+            <SectionErrorBoundary fallbackTitle="Live Map Loading Issue">
+              <LiveFleetMap drivers={drivers} activeRides={rides} />
+            </SectionErrorBoundary>
           )}
 
           {/* TAB 3: ACTIVE RIDES FEED */}
           {currentTab === 'rides' && (
-            <ActiveRidesTable rides={rides} isLoading={isLoading} />
+            <SectionErrorBoundary fallbackTitle="Dispatch Trips Loading Issue">
+              <ActiveRidesTable rides={rides} isLoading={isLoading} />
+            </SectionErrorBoundary>
           )}
 
           {/* TAB 4: DRIVER VERIFICATION QUEUE */}
           {currentTab === 'drivers' && (
-            <DriverQueue
-              drivers={pendingDrivers}
-              onApprove={handleApproveDriver}
-              isLoading={isLoading}
-            />
+            <SectionErrorBoundary fallbackTitle="Driver Queue Loading Issue">
+              <DriverQueue
+                drivers={pendingDrivers}
+                onApprove={handleApproveDriver}
+                isLoading={isLoading}
+              />
+            </SectionErrorBoundary>
           )}
 
           {/* TAB 5: REVENUE ANALYTICS */}
           {currentTab === 'revenue' && (
-            <RevenueAnalytics stats={stats} />
+            <SectionErrorBoundary fallbackTitle="Financial Ledger Loading Issue">
+              <RevenueAnalytics stats={stats} />
+            </SectionErrorBoundary>
           )}
         </main>
       </div>

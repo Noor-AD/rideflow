@@ -75,10 +75,12 @@ export const DriverQueue: React.FC<DriverQueueProps> = ({
                         <User className="w-4 h-4 text-slate-400" />
                       </div>
                       <div>
-                        <p className="font-semibold text-white">{driver.user.name}</p>
+                        <p className="font-semibold text-white">
+                          {driver.user?.name || (driver as any).name || `Driver #${driver.id}`}
+                        </p>
                         <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
                           <Phone className="w-3 h-3 text-slate-500" />
-                          {driver.user.phone}
+                          {driver.user?.phone || 'No phone'}
                         </p>
                       </div>
                     </div>

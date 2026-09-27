@@ -128,8 +128,12 @@ export const ActiveRidesTable: React.FC<ActiveRidesTableProps> = ({
                         <User className="w-3.5 h-3.5 text-slate-400" />
                       </div>
                       <div>
-                        <p className="font-semibold text-white text-xs">{ride.rider.name}</p>
-                        <p className="text-[11px] text-slate-500">{ride.rider.phone}</p>
+                        <p className="font-semibold text-white text-xs">
+                          {ride.rider?.name || (ride as any).riderName || 'Passenger'}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          {ride.rider?.phone || (ride as any).riderPhone || 'No phone'}
+                        </p>
                       </div>
                     </div>
                   </td>
@@ -142,9 +146,11 @@ export const ActiveRidesTable: React.FC<ActiveRidesTableProps> = ({
                           <Car className="w-3.5 h-3.5" />
                         </div>
                         <div>
-                          <p className="font-semibold text-white text-xs">{ride.driver.user.name}</p>
+                          <p className="font-semibold text-white text-xs">
+                            {ride.driver.user?.name || (ride.driver as any).name || 'Assigned Driver'}
+                          </p>
                           <p className="text-[11px] text-slate-400">
-                            {ride.driver.vehicleType} ({ride.driver.vehicleNumber})
+                            {ride.driver.vehicleType || 'Vehicle'} ({ride.driver.vehicleNumber || 'N/A'})
                           </p>
                         </div>
                       </div>

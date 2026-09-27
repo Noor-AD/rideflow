@@ -110,12 +110,14 @@ export const LiveFleetMap: React.FC<LiveFleetMapProps> = ({
               >
                 <Popup className="custom-popup">
                   <div className="p-2 text-slate-800">
-                    <p className="font-bold text-sm">{driver.user.name}</p>
+                    <p className="font-bold text-sm">
+                      {driver.user?.name || (driver as any).name || `Driver #${driver.id}`}
+                    </p>
                     <p className="text-xs text-slate-600">
                       Vehicle: <span className="font-semibold">{driver.vehicleType}</span> ({driver.vehicleNumber})
                     </p>
                     <p className="text-xs text-slate-600">
-                      Phone: <span className="font-semibold">{driver.user.phone}</span>
+                      Phone: <span className="font-semibold">{driver.user?.phone || 'No phone'}</span>
                     </p>
                     <div className="mt-2 pt-1 border-t border-slate-200 flex items-center justify-between text-xs">
                       <span className="text-emerald-700 font-semibold">

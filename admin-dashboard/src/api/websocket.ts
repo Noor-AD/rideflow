@@ -24,7 +24,10 @@ class WebSocketService {
 
     // Configure STOMP over SockJS to match Spring Boot backend (/ws)
     this.client = new Client({
-      webSocketFactory: () => new SockJS('https://rideflow-production-06dc.up.railway.app/ws'),
+      webSocketFactory: () => {
+        const SockJSCtor = (SockJS as any)?.default || SockJS;
+        return new SockJSCtor('https://rideflow-production-06dc.up.railway.app/ws');
+      },
       reconnectDelay: 5000, // Auto-reconnect every 5 seconds if connection drops
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,

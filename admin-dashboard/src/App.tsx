@@ -20,13 +20,16 @@ interface AdminSessionUser {
 }
 
 const getInitialAuth = (): { token: string | null; user: AdminSessionUser | null } => {
-  const token = localStorage.getItem('rideflow_admin_token');
-  const userStr = localStorage.getItem('rideflow_admin_user');
-  if (!token) return { token: null, user: null };
   try {
+    if (typeof window === 'undefined' || !window.localStorage) {
+      return { token: null, user: null };
+    }
+    const token = localStorage.getItem('rideflow_admin_token');
+    const userStr = localStorage.getItem('rideflow_admin_user');
+    if (!token) return { token: null, user: null };
     return { token, user: userStr ? JSON.parse(userStr) : null };
   } catch {
-    return { token, user: null };
+    return { token: null, user: null };
   }
 };
 

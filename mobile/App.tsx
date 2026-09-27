@@ -1,9 +1,10 @@
 // mobile/App.tsx
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, ActivityIndicator, LogBox } from 'react-native';
+import { StyleSheet, View, Text, ActivityIndicator, LogBox, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Updates from 'expo-updates';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { RiderScreen } from './src/screens/RiderScreen';
@@ -11,6 +12,56 @@ import { DriverScreen } from './src/screens/DriverScreen';
 
 // Clear developer yellow warning boxes/lines on phone UI
 LogBox.ignoreAllLogs();
+
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('Unhandled App Crash caught by ErrorBoundary:', error, errorInfo);
+  }
+
+  handleReset = async () => {
+    try {
+      await AsyncStorage.removeItem('rideflow_token');
+      await AsyncStorage.removeItem('rideflow_user');
+    } catch (_) {}
+    this.setState({ hasError: false, error: null });
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorIcon}>⚠️</Text>
+          <Text style={styles.errorTitle}>Something went wrong</Text>
+          <Text style={styles.errorMessage}>
+            {this.state.error?.message || 'An unexpected error occurred.'}
+          </Text>
+          <TouchableOpacity style={styles.resetButton} onPress={this.handleReset}>
+            <Text style={styles.resetButtonText}>Reset Session & Retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, isLoading, activeRole } = useAuth();
@@ -22,13 +73,16 @@ const AppContent: React.FC = () => {
 
     async function checkOtaUpdate() {
       try {
+        if (!Updates.isEnabled) return;
         const update = await Updates.checkForUpdateAsync();
         if (update.isAvailable) {
           setUpdateMsg('🔄 Downloading latest update...');
           await Updates.fetchUpdateAsync();
           setUpdateMsg('✅ Update installed! Reloading app...');
           setTimeout(async () => {
-            await Updates.reloadAsync();
+            try {
+              await Updates.reloadAsync();
+            } catch (_) {}
           }, 800);
         }
       } catch (err) {
@@ -83,9 +137,11 @@ const AppContent: React.FC = () => {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
+      <ErrorBoundary>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </ErrorBoundary>
     </SafeAreaProvider>
   );
 }
@@ -118,5 +174,40 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 13,
     fontWeight: '600',
+  },
+  errorContainer: {
+    flex: 1,
+    backgroundColor: '#0f172a',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  errorIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#f8fafc',
+    marginBottom: 8,
+  },
+  errorMessage: {
+    fontSize: 14,
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  resetButton: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  resetButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

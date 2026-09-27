@@ -425,15 +425,21 @@ export const DriverScreen: React.FC = () => {
             </View>
 
             {/* Passenger Details */}
-            <View style={styles.riderInfoRow}>
-              <View style={styles.riderAvatar}>
-                <Text style={styles.riderAvatarText}>{activeRide.rider.name.charAt(0)}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.riderName}>{activeRide.rider.name}</Text>
-                <Text style={styles.riderPhone}>{activeRide.rider.phone}</Text>
-              </View>
-            </View>
+            {(() => {
+              const passengerName = activeRide.rider?.name || (activeRide as any).riderName || 'Passenger';
+              const passengerPhone = activeRide.rider?.phone || (activeRide as any).riderPhone || 'Contact via chat';
+              return (
+                <View style={styles.riderInfoRow}>
+                  <View style={styles.riderAvatar}>
+                    <Text style={styles.riderAvatarText}>{passengerName.charAt(0).toUpperCase() || 'P'}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.riderName}>{passengerName}</Text>
+                    <Text style={styles.riderPhone}>{passengerPhone}</Text>
+                  </View>
+                </View>
+              );
+            })()}
 
             {/* IN-RIDE LIVE CHAT BUTTON WITH UNREAD BADGE */}
             <TouchableOpacity
@@ -683,7 +689,7 @@ export const DriverScreen: React.FC = () => {
           currentUserId={user?.id || 2}
           currentUserName={user?.name || 'Driver'}
           currentUserRole="ROLE_DRIVER"
-          counterpartName={activeRide.rider?.name || 'Passenger'}
+          counterpartName={activeRide.rider?.name || (activeRide as any).riderName || 'Passenger'}
         />
       )}
 

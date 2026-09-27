@@ -1111,9 +1111,9 @@ export const RiderScreen: React.FC = () => {
           currentUserId={user?.id || 1}
           currentUserName={user?.name || 'Passenger'}
           currentUserRole="ROLE_RIDER"
-          counterpartName={activeRide.driver?.user?.name || 'Driver'}
-          vehicleModel={activeRide.driver?.vehicleModel || `${activeRide.vehicleType || 'RideFlow'} Car`}
-          vehiclePlate={activeRide.driver?.vehiclePlate || 'KA-01-EQ-9872'}
+          counterpartName={activeRide.driver?.user?.name || (activeRide as any).driverName || 'Driver'}
+          vehicleModel={activeRide.driver?.vehicleModel || (activeRide as any).vehicleModel || `${activeRide.vehicleType || 'RideFlow'} Car`}
+          vehiclePlate={activeRide.driver?.vehiclePlate || (activeRide as any).vehiclePlate || 'KA-01-EQ-9872'}
         />
       )}
 

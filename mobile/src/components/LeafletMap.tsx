@@ -94,6 +94,21 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           border-radius: 50%;
           box-shadow: 0 0 15px rgba(59, 130, 246, 0.9);
         }
+        .marker-pill {
+          background: rgba(15, 23, 42, 0.92) !important;
+          border: 1px solid rgba(255, 255, 255, 0.22) !important;
+          color: #f8fafc !important;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+          font-size: 11px !important;
+          font-weight: 700 !important;
+          padding: 3px 8px !important;
+          border-radius: 9999px !important;
+          white-space: nowrap !important;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45) !important;
+        }
+        .marker-pill::before {
+          border-top-color: rgba(15, 23, 42, 0.92) !important;
+        }
       </style>
     </head>
     <body>
@@ -112,23 +127,26 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           attribution: 'Esri, HERE, Garmin, OpenStreetMap'
         }).addTo(map);
 
+        // Distinct Passenger Silhouette Icon
         var pickupIcon = L.divIcon({
           className: '',
-          html: '<div class="pin-wrapper pickup-pin"><svg width="14" height="14" viewBox="0 0 24 24" fill="#fff" stroke="#fff" stroke-width="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg></div>',
+          html: '<div class="pin-wrapper pickup-pin"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>',
           iconSize: [32, 32],
           iconAnchor: [16, 16]
         });
 
+        // Destination Flag Icon
         var dropoffIcon = L.divIcon({
           className: '',
-          html: '<div class="pin-wrapper dropoff-pin"><svg width="14" height="14" viewBox="0 0 24 24" fill="#fff" stroke="#fff" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3" fill="#f43f5e"/></svg></div>',
+          html: '<div class="pin-wrapper dropoff-pin"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></div>',
           iconSize: [32, 32],
           iconAnchor: [16, 16]
         });
 
+        // Driver Car Icon
         var driverIcon = L.divIcon({
           className: '',
-          html: '<div class="pin-wrapper driver-pin"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.8C2.1 11.2 2 11.6 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></div>',
+          html: '<div class="pin-wrapper driver-pin"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.8C2.1 11.2 2 11.6 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></div>',
           iconSize: [36, 36],
           iconAnchor: [18, 18]
         });
@@ -141,7 +159,10 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
         if (!isDriverView) {
           pickupMarker = L.marker([${pickupCoords.latitude}, ${pickupCoords.longitude}], { icon: pickupIcon }).addTo(map);
+          pickupMarker.bindTooltip('🧍 Your Pickup', { permanent: true, direction: 'top', offset: [0, -18], className: 'marker-pill' });
+
           dropoffMarker = L.marker([${dropoffCoords.latitude}, ${dropoffCoords.longitude}], { icon: dropoffIcon }).addTo(map);
+          dropoffMarker.bindTooltip('🏁 Destination', { permanent: true, direction: 'top', offset: [0, -18], className: 'marker-pill' });
 
           var initialRoute = ${JSON.stringify(
             routeCoordinates && routeCoordinates.length > 1
@@ -162,7 +183,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
         } else {
           // DRIVER VIEW INITIAL STATE
-          ${driverLocation ? `driverMarker = L.marker([${driverLocation.latitude}, ${driverLocation.longitude}], { icon: driverIcon }).addTo(map);` : ''}
+          ${driverLocation ? `driverMarker = L.marker([${driverLocation.latitude}, ${driverLocation.longitude}], { icon: driverIcon }).addTo(map);
+          driverMarker.bindTooltip('🚗 Your Location', { permanent: true, direction: 'top', offset: [0, -20], className: 'marker-pill' });` : ''}
         }
 
         // Real-time update function called from React Native without reloading page
@@ -177,6 +199,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               var dPos = [data.driver.latitude, data.driver.longitude];
               if (!driverMarker) {
                 driverMarker = L.marker(dPos, { icon: driverIcon }).addTo(map);
+                driverMarker.bindTooltip('🚗 Your Location', { permanent: true, direction: 'top', offset: [0, -20], className: 'marker-pill' });
               } else {
                 driverMarker.setLatLng(dPos);
               }
@@ -201,6 +224,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                 var pPos = [data.pickup.latitude, data.pickup.longitude];
                 if (!pickupMarker) {
                   pickupMarker = L.marker(pPos, { icon: pickupIcon }).addTo(map);
+                  pickupMarker.bindTooltip('🧍 Passenger Pickup', { permanent: true, direction: 'top', offset: [0, -18], className: 'marker-pill' });
                 } else {
                   pickupMarker.setLatLng(pPos);
                 }
@@ -227,6 +251,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                 var dropPos = [data.dropoff.latitude, data.dropoff.longitude];
                 if (!dropoffMarker) {
                   dropoffMarker = L.marker(dropPos, { icon: dropoffIcon }).addTo(map);
+                  dropoffMarker.bindTooltip('🏁 Destination', { permanent: true, direction: 'top', offset: [0, -18], className: 'marker-pill' });
                 } else {
                   dropoffMarker.setLatLng(dropPos);
                 }
@@ -253,6 +278,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             if (data.pickup) {
               if (!pickupMarker) {
                 pickupMarker = L.marker([data.pickup.latitude, data.pickup.longitude], { icon: pickupIcon }).addTo(map);
+                pickupMarker.bindTooltip('🧍 Your Pickup', { permanent: true, direction: 'top', offset: [0, -18], className: 'marker-pill' });
               } else {
                 pickupMarker.setLatLng([data.pickup.latitude, data.pickup.longitude]);
               }
@@ -260,6 +286,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             if (data.dropoff) {
               if (!dropoffMarker) {
                 dropoffMarker = L.marker([data.dropoff.latitude, data.dropoff.longitude], { icon: dropoffIcon }).addTo(map);
+                dropoffMarker.bindTooltip('🏁 Destination', { permanent: true, direction: 'top', offset: [0, -18], className: 'marker-pill' });
               } else {
                 dropoffMarker.setLatLng([data.dropoff.latitude, data.dropoff.longitude]);
               }
@@ -293,6 +320,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               var dLoc = [data.driver.latitude, data.driver.longitude];
               if (!driverMarker) {
                 driverMarker = L.marker(dLoc, { icon: driverIcon }).addTo(map);
+                driverMarker.bindTooltip('🚗 Driver', { permanent: true, direction: 'top', offset: [0, -20], className: 'marker-pill' });
               } else {
                 driverMarker.setLatLng(dLoc);
               }

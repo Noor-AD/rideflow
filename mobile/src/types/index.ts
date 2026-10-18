@@ -78,8 +78,20 @@ export type RideStatus =
 
 export interface Ride {
   id: number;
-  rider: User;
+  rider?: User;
+  riderId?: number;
+  riderName?: string;
+  riderPhone?: string;
   driver?: DriverProfile;
+  driverId?: number;
+  driverName?: string;
+  driverPhone?: string;
+  driverLat?: number;
+  driverLng?: number;
+  vehiclePlate?: string;
+  vehicleModel?: string;
+  distanceKm?: number;
+  durationMinutes?: number;
   pickupLat: number;
   pickupLng: number;
   pickupAddress?: string;

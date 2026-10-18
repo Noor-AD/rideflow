@@ -651,11 +651,17 @@ export const DriverScreen: React.FC = () => {
             {/* Passenger Details */}
             <View style={styles.riderInfoRow}>
               <View style={styles.riderAvatar}>
-                <Text style={styles.riderAvatarText}>{activeRide.rider.name.charAt(0)}</Text>
+                <Text style={styles.riderAvatarText}>
+                  {(activeRide.rider?.name || activeRide.riderName || 'Passenger').charAt(0)}
+                </Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.riderName}>{activeRide.rider.name}</Text>
-                <Text style={styles.riderPhone}>{activeRide.rider.phone}</Text>
+                <Text style={styles.riderName}>
+                  {activeRide.rider?.name || activeRide.riderName || 'Passenger'}
+                </Text>
+                <Text style={styles.riderPhone}>
+                  {activeRide.rider?.phone || activeRide.riderPhone || 'Phone unavailable'}
+                </Text>
               </View>
             </View>
 
@@ -856,7 +862,7 @@ export const DriverScreen: React.FC = () => {
                     <View style={styles.historyCardTop}>
                       <View style={styles.historyPassengerBadge}>
                         <User size={13} color="#38bdf8" />
-                        <Text style={styles.historyPassengerText}>{ride.rider?.name || 'Passenger'}</Text>
+                        <Text style={styles.historyPassengerText}>{ride.rider?.name || ride.riderName || 'Passenger'}</Text>
                       </View>
                       <Text style={styles.historyFare}>+ ₹{ride.actualFare || ride.estimatedFare || ride.fare || 0}</Text>
                     </View>
@@ -920,7 +926,7 @@ export const DriverScreen: React.FC = () => {
           currentUserId={user?.id || 2}
           currentUserName={user?.name || 'Driver'}
           currentUserRole="ROLE_DRIVER"
-          counterpartName={activeRide.rider?.name || 'Passenger'}
+          counterpartName={activeRide.rider?.name || activeRide.riderName || 'Passenger'}
         />
       )}
 

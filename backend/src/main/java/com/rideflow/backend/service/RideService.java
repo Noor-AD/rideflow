@@ -3,7 +3,7 @@ package com.rideflow.backend.service;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Objects;
 
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -54,8 +54,10 @@ public class RideService {
         User rider = userRepository.findById(riderId)
                 .orElseThrow(() -> new IllegalArgumentException("Rider not found with id: " + riderId));
 
+        boolean isAdvanceSchedule = request.getScheduledPickupTime() != null && !request.getScheduledPickupTime().trim().isEmpty();
+
         // Prevent double booking for instant trips
-        if (request.getScheduledPickupTime() == null) {
+        if (!isAdvanceSchedule) {
             rideRepository.findFirstByRiderIdAndStatusIn(riderId, ACTIVE_STATUSES)
                     .ifPresent(activeRide -> {
                         throw new IllegalStateException("You already have an active ride (ID: " + activeRide.getId() + ")");
@@ -176,7 +178,7 @@ public class RideService {
             throw new IllegalStateException("Cannot start trip. Driver must arrive first. Current status: " + ride.getStatus());
         }
 
-        if (!ride.getOtp().equals(otp)) {
+        if (!Objects.equals(ride.getOtp(), otp)) {
             throw new IllegalArgumentException("Invalid verification OTP. Please verify with the passenger.");
         }
 
@@ -207,10 +209,13 @@ public class RideService {
             ride.setPaymentStatus(PaymentStatus.COMPLETED);
         }
 
-        // Increment driver total completed rides count
+        // Increment driver total completed rides count safely
         DriverProfile driver = ride.getDriver();
-        driver.setTotalRides(driver.getTotalRides() + 1);
-        driverRepository.save(driver);
+        if (driver != null) {
+            int currentTotal = driver.getTotalRides() != null ? driver.getTotalRides() : 0;
+            driver.setTotalRides(currentTotal + 1);
+            driverRepository.save(driver);
+        }
 
         RideResponse response = mapToResponse(rideRepository.save(ride));
         // Real-time broadcast to Rider
@@ -224,8 +229,8 @@ public class RideService {
         Ride ride = rideRepository.findById(rideId)
                 .orElseThrow(() -> new IllegalArgumentException("Ride not found with id: " + rideId));
 
-        boolean isRider = ride.getRider().getId().equals(userId);
-        boolean isDriver = ride.getDriver() != null && ride.getDriver().getUser().getId().equals(userId);
+        boolean isRider = ride.getRider() != null && Objects.equals(ride.getRider().getId(), userId);
+        boolean isDriver = ride.getDriver() != null && ride.getDriver().getUser() != null && Objects.equals(ride.getDriver().getUser().getId(), userId);
 
         if (!isRider && !isDriver) {
             throw new IllegalStateException("You are not authorized to cancel this ride.");
@@ -323,7 +328,7 @@ public class RideService {
 
         double totalRevenue = rideRepository.findAll().stream()
                 .filter(r -> r.getStatus() == RideStatus.COMPLETED && r.getActualFare() != null)
-                .mapToDouble(Ride::getActualFare)
+                .mapToDouble(r -> r.getActualFare() != null ? r.getActualFare() : 0.0)
                 .sum();
         double platformCommission = Math.round(totalRevenue * 0.20 * 100.0) / 100.0;
 
@@ -342,7 +347,7 @@ public class RideService {
         Ride ride = rideRepository.findById(rideId)
                 .orElseThrow(() -> new IllegalArgumentException("Ride not found with id: " + rideId));
 
-        if (!ride.getRider().getId().equals(userId)) {
+        if (ride.getRider() == null || !Objects.equals(ride.getRider().getId(), userId)) {
             throw new IllegalStateException("Only the passenger can rate this ride.");
         }
 
@@ -350,7 +355,7 @@ public class RideService {
             throw new IllegalStateException("Can only rate completed rides.");
         }
 
-        if (ride.getDriver() != null) {
+        if (ride.getDriver() != null && request != null && request.getRating() != null) {
             driverService.updateDriverRating(ride.getDriver().getId(), request.getRating());
         }
 
@@ -410,9 +415,9 @@ public class RideService {
     public RideResponse mapToResponse(Ride ride) {
         RideResponse.RideResponseBuilder builder = RideResponse.builder()
                 .id(ride.getId())
-                .riderId(ride.getRider().getId())
-                .riderName(ride.getRider().getName())
-                .riderPhone(ride.getRider().getPhone())
+                .riderId(ride.getRider() != null ? ride.getRider().getId() : null)
+                .riderName(ride.getRider() != null ? ride.getRider().getName() : null)
+                .riderPhone(ride.getRider() != null ? ride.getRider().getPhone() : null)
                 .pickupLat(ride.getPickupLat())
                 .pickupLng(ride.getPickupLng())
                 .pickupAddress(ride.getPickupAddress())
@@ -434,12 +439,12 @@ public class RideService {
                 .startedAt(ride.getStartedAt())
                 .completedAt(ride.getCompletedAt())
                 .scheduledPickupTime(ride.getScheduledPickupTime())
-                .isScheduled(ride.getIsScheduled() != null ? ride.getIsScheduled() : false);
+                .isScheduled(Boolean.TRUE.equals(ride.getIsScheduled()));
 
         if (ride.getDriver() != null) {
             builder.driverId(ride.getDriver().getId())
-                    .driverName(ride.getDriver().getUser().getName())
-                    .driverPhone(ride.getDriver().getUser().getPhone())
+                    .driverName(ride.getDriver().getUser() != null ? ride.getDriver().getUser().getName() : null)
+                    .driverPhone(ride.getDriver().getUser() != null ? ride.getDriver().getUser().getPhone() : null)
                     .vehiclePlate(ride.getDriver().getVehiclePlate())
                     .vehicleModel(ride.getDriver().getVehicleModel())
                     .driverLat(ride.getDriver().getCurrentLatitude())
@@ -455,7 +460,7 @@ public class RideService {
         return rideRepository.findByRiderIdAndStatusOrderByScheduledPickupTimeAsc(riderId, RideStatus.SCHEDULED)
                 .stream()
                 .map(this::mapToResponse)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     // 13. Advance Scheduled Rides: Cancel upcoming scheduled trip
@@ -464,7 +469,7 @@ public class RideService {
         Ride ride = rideRepository.findById(rideId)
                 .orElseThrow(() -> new IllegalArgumentException("Ride not found with id: " + rideId));
 
-        if (!ride.getRider().getId().equals(riderId)) {
+        if (ride.getRider() == null || !Objects.equals(ride.getRider().getId(), riderId)) {
             throw new IllegalStateException("You are not authorized to cancel this scheduled ride.");
         }
 

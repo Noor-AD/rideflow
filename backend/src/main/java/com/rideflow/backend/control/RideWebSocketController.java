@@ -8,6 +8,8 @@ import org.springframework.stereotype.Controller;
 import com.rideflow.backend.dto.websocket.ChatMessageDto;
 import com.rideflow.backend.dto.websocket.DriverLocationPayload;
 import com.rideflow.backend.service.ChatService;
+import com.rideflow.backend.service.DriverService;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,8 +20,8 @@ import lombok.extern.slf4j.Slf4j;
 public class RideWebSocketController {
 
     private final ChatService chatService;
-    private final com.rideflow.backend.service.DriverService driverService;
-    private final org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
+    private final DriverService driverService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     /**
      * General driver GPS location telemetry (when online):

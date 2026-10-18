@@ -59,6 +59,30 @@ export const DriverScreen: React.FC = () => {
   // Driver GPS Location & Navigation State
   const [driverCoords, setDriverCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [navRoute, setNavRoute] = useState<RouteDetails | null>(null);
+  const [isRefreshingGps, setIsRefreshingGps] = useState(false);
+
+  const handleManualGpsRefresh = async () => {
+    setIsRefreshingGps(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        syncDriverLocation(
+          loc.coords.latitude,
+          loc.coords.longitude,
+          loc.coords.heading || 0,
+          loc.coords.speed || 0
+        );
+        Alert.alert('GPS Location Updated', `Driver location synchronized with backend:\nLat: ${loc.coords.latitude.toFixed(4)}, Lng: ${loc.coords.longitude.toFixed(4)}`);
+      } else {
+        Alert.alert('Permission Denied', 'Please enable location permissions in phone settings.');
+      }
+    } catch (err) {
+      Alert.alert('GPS Error', 'Could not fetch current GPS location.');
+    } finally {
+      setIsRefreshingGps(false);
+    }
+  };
 
   // History State
   const [showHistory, setShowHistory] = useState(false);
@@ -522,7 +546,7 @@ export const DriverScreen: React.FC = () => {
                   : 'Driver Radar (Offline)'}
               </Text>
             </View>
-            {activeRide && (
+            {activeRide ? (
               <TouchableOpacity
                 style={styles.openNavHeaderBtn}
                 onPress={handleOpenExternalNavigation}
@@ -530,6 +554,22 @@ export const DriverScreen: React.FC = () => {
               >
                 <ExternalLink size={12} color="#020617" />
                 <Text style={styles.openNavHeaderBtnText}>Google Maps</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.refreshGpsHeaderBtn}
+                onPress={handleManualGpsRefresh}
+                disabled={isRefreshingGps}
+                accessibilityLabel="Sync Current GPS Location"
+              >
+                {isRefreshingGps ? (
+                  <ActivityIndicator size="small" color="#10b981" />
+                ) : (
+                  <>
+                    <Navigation size={11} color="#10b981" />
+                    <Text style={styles.refreshGpsHeaderBtnText}>My Location</Text>
+                  </>
+                )}
               </TouchableOpacity>
             )}
           </View>
@@ -938,6 +978,22 @@ const styles = StyleSheet.create({
   },
   openNavHeaderBtnText: {
     color: '#020617',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  refreshGpsHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderWidth: 1,
+    borderColor: '#10b981',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  refreshGpsHeaderBtnText: {
+    color: '#10b981',
     fontSize: 11,
     fontWeight: '700',
   },

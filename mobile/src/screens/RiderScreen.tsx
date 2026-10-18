@@ -70,6 +70,66 @@ export const RiderScreen: React.FC = () => {
   const [searchModalVisible, setSearchModalVisible] = useState(false);
   const [searchMode, setSearchMode] = useState<'PICKUP' | 'DROPOFF'>('DROPOFF');
 
+  // Current Location State & High-Precision GPS Tracker
+  const [isLocatingRider, setIsLocatingRider] = useState(false);
+
+  const handleUseCurrentLocation = async (silent = false) => {
+    setIsLocatingRider(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        if (!silent) {
+          Alert.alert(
+            'Location Permission Required',
+            'Please enable device location permissions in Settings to auto-detect your exact pickup position.'
+          );
+        }
+        setIsLocatingRider(false);
+        return;
+      }
+
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const lat = loc.coords.latitude;
+      const lng = loc.coords.longitude;
+
+      let resolvedAddr = 'Current Location';
+      try {
+        const reverseResults = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+        if (reverseResults && reverseResults.length > 0) {
+          const r = reverseResults[0];
+          const parts = [
+            r.name || r.street,
+            r.district || r.subregion || r.city,
+            r.city || 'Bengaluru',
+          ].filter(Boolean);
+          if (parts.length > 0) {
+            resolvedAddr = parts.join(', ');
+          }
+        }
+      } catch (e) {
+        // Fallback
+      }
+
+      setPickupCoords({ latitude: lat, longitude: lng });
+      setPickupAddress(resolvedAddr);
+
+      if (!silent) {
+        Alert.alert('Pickup Location Set', `Your exact GPS pickup location has been set to:\n${resolvedAddr}`);
+      }
+    } catch (err) {
+      if (!silent) {
+        Alert.alert('GPS Error', 'Could not detect your current location. Please verify that location services are active.');
+      }
+    } finally {
+      setIsLocatingRider(false);
+    }
+  };
+
+  // Auto-detect rider physical GPS location on app launch
+  useEffect(() => {
+    handleUseCurrentLocation(true);
+  }, []);
+
   // Smart Navigation & OSRM Road Geometry States
   const [routeCoordinates, setRouteCoordinates] = useState<[number, number][]>([]);
   const [routeDistanceKm, setRouteDistanceKm] = useState<number>(7.5);
@@ -569,24 +629,59 @@ export const RiderScreen: React.FC = () => {
       {!activeRide && (
         <View style={styles.routeSelectorCard}>
           {/* Pickup Selection Row */}
-          <TouchableOpacity
-            style={styles.routeRow}
-            onPress={() => {
-              setSearchMode('PICKUP');
-              setSearchModalVisible(true);
-            }}
-          >
-            <View style={styles.routeDotPickup} />
-            <View style={styles.routeTextWrap}>
-              <Text style={styles.routeMiniLabel}>PICKUP LOCATION</Text>
-              <Text style={styles.routeAddressMain} numberOfLines={1}>
-                {pickupAddress}
-              </Text>
+          <View style={styles.routeRow}>
+            <TouchableOpacity
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+              onPress={() => {
+                setSearchMode('PICKUP');
+                setSearchModalVisible(true);
+              }}
+            >
+              <View style={styles.routeDotPickup} />
+              <View style={styles.routeTextWrap}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.routeMiniLabel}>PICKUP LOCATION</Text>
+                  {pickupAddress.toLowerCase().includes('current') && (
+                    <View style={styles.gpsActiveBadge}>
+                      <Text style={styles.gpsActiveBadgeText}>LIVE GPS</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.routeAddressMain} numberOfLines={1}>
+                  {pickupAddress}
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              {/* Quick "Current Location" Button */}
+              <TouchableOpacity
+                style={[styles.quickGpsBtn, isLocatingRider && styles.quickGpsBtnActive]}
+                onPress={() => handleUseCurrentLocation(false)}
+                disabled={isLocatingRider}
+                accessibilityLabel="Detect Current GPS Location"
+              >
+                {isLocatingRider ? (
+                  <ActivityIndicator size="small" color="#10b981" />
+                ) : (
+                  <>
+                    <Navigation size={11} color="#10b981" />
+                    <Text style={styles.quickGpsBtnText}>Current GPS</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.routeEditPill}
+                onPress={() => {
+                  setSearchMode('PICKUP');
+                  setSearchModalVisible(true);
+                }}
+              >
+                <Text style={styles.routeEditPillText}>Change</Text>
+              </TouchableOpacity>
             </View>
-            <View style={styles.routeEditPill}>
-              <Text style={styles.routeEditPillText}>Change</Text>
-            </View>
-          </TouchableOpacity>
+          </View>
 
           <View style={styles.routeSeparator} />
 
@@ -1976,6 +2071,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
+  },
+  gpsActiveBadge: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 3,
+  },
+  gpsActiveBadgeText: {
+    color: '#020617',
+    fontSize: 8,
+    fontWeight: '800',
+  },
+  quickGpsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderWidth: 1,
+    borderColor: '#10b981',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  quickGpsBtnActive: {
+    opacity: 0.7,
+  },
+  quickGpsBtnText: {
+    color: '#10b981',
+    fontSize: 11,
+    fontWeight: '700',
   },
   routeEditPillDropoff: {
     flexDirection: 'row',

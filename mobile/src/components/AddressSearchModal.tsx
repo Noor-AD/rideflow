@@ -9,9 +9,11 @@ import {
   ScrollView,
   ActivityIndicator,
   Modal,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, MapPin, X, Navigation, Building2, Plane, Sparkles } from 'lucide-react-native';
+import * as Location from 'expo-location';
+import { Search, MapPin, X, Navigation, Building2, Plane, Sparkles, Crosshair } from 'lucide-react-native';
 import { navigationService, type AddressSuggestion } from '../services/navigationService';
 
 interface AddressSearchModalProps {
@@ -119,6 +121,56 @@ export const AddressSearchModal: React.FC<AddressSearchModalProps> = ({
     }, 250);
   };
 
+  const [isLocating, setIsLocating] = useState(false);
+
+  const handleUseCurrentLocation = async () => {
+    setIsLocating(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Location Permission Required',
+          'Please allow location permission in your device settings to use your current location.'
+        );
+        setIsLocating(false);
+        return;
+      }
+
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const lat = loc.coords.latitude;
+      const lng = loc.coords.longitude;
+
+      let resolvedName = 'Current Location';
+      try {
+        const reverseResults = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+        if (reverseResults && reverseResults.length > 0) {
+          const r = reverseResults[0];
+          const parts = [
+            r.name || r.street,
+            r.district || r.subregion || r.city,
+            r.city || 'Bengaluru',
+          ].filter(Boolean);
+          if (parts.length > 0) {
+            resolvedName = parts.join(', ');
+          }
+        }
+      } catch (revErr) {
+        // Fallback
+      }
+
+      handleSelect({
+        displayName: resolvedName,
+        shortName: resolvedName.length > 30 ? resolvedName.substring(0, 30) + '...' : resolvedName,
+        latitude: lat,
+        longitude: lng,
+      });
+    } catch (err: any) {
+      Alert.alert('GPS Error', 'Unable to detect your current location. Please verify that GPS is turned on.');
+    } finally {
+      setIsLocating(false);
+    }
+  };
+
   const handleSelect = (item: AddressSuggestion) => {
     onSelectLocation(item);
     onClose();
@@ -167,6 +219,33 @@ export const AddressSearchModal: React.FC<AddressSearchModalProps> = ({
             </TouchableOpacity>
           ) : null}
         </View>
+
+        {/* "Use My Current Location" Quick Action */}
+        <TouchableOpacity
+          style={styles.currentLocationRow}
+          onPress={handleUseCurrentLocation}
+          disabled={isLocating}
+          accessibilityLabel="Use My Current Location"
+        >
+          <View style={styles.currentLocationIcon}>
+            {isLocating ? (
+              <ActivityIndicator size="small" color="#10b981" />
+            ) : (
+              <Navigation size={18} color="#10b981" />
+            )}
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.currentLocationTitle}>Use My Current Location</Text>
+              <View style={styles.gpsBadge}>
+                <Text style={styles.gpsBadgeText}>GPS</Text>
+              </View>
+            </View>
+            <Text style={styles.currentLocationSubtitle}>
+              {isLocating ? 'Detecting high-precision physical location...' : 'Current physical location via device GPS'}
+            </Text>
+          </View>
+        </TouchableOpacity>
 
         {/* Quick Suggestion Chips (City Hotspots) */}
         <View style={styles.chipsSection}>
@@ -269,6 +348,48 @@ const styles = StyleSheet.create({
   },
   inputRight: {
     padding: 6,
+  },
+  currentLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.25)',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    marginHorizontal: 16,
+    marginBottom: 14,
+  },
+  currentLocationIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  currentLocationTitle: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  currentLocationSubtitle: {
+    color: '#94a3b8',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  gpsBadge: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  gpsBadgeText: {
+    color: '#020617',
+    fontSize: 9,
+    fontWeight: '800',
   },
   chipsSection: {
     paddingHorizontal: 16,

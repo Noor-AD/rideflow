@@ -53,6 +53,28 @@ import {
 export const RiderScreen: React.FC = () => {
   const { user, logout } = useAuth();
 
+  const handleLogout = () => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('Are you sure you want to log out of RideFlow?');
+      if (confirmed) {
+        logout();
+      }
+      return;
+    }
+    Alert.alert(
+      'Log Out',
+      'Are you sure you want to log out of RideFlow?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Log Out',
+          style: 'destructive',
+          onPress: () => logout(),
+        },
+      ]
+    );
+  };
+
   // 1. Coordinates & Addresses State (Default: MG Road to Koramangala, Bengaluru)
   const [pickupCoords, setPickupCoords] = useState({
     latitude: 12.9716,
@@ -619,7 +641,7 @@ export const RiderScreen: React.FC = () => {
           >
             <FileText size={18} color="#94a3b8" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.logoutButton} onPress={logout}>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <LogOut size={18} color="#94a3b8" />
           </TouchableOpacity>
         </View>

@@ -263,10 +263,10 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
               if (tripRoute.length > 1) {
                 if (!routeLine) {
-                  routeLine = L.polyline(tripRoute, { color: '#10b981', weight: 5, opacity: 0.95 }).addTo(map);
+                  routeLine = L.polyline(tripRoute, { color: '#38bdf8', weight: 5, opacity: 0.95 }).addTo(map);
                 } else {
                   routeLine.setLatLngs(tripRoute);
-                  routeLine.setStyle({ color: '#10b981' });
+                  routeLine.setStyle({ color: '#38bdf8' });
                 }
                 map.fitBounds(routeLine.getBounds(), { padding: [60, 60], maxZoom: 17 });
               }
@@ -295,10 +295,12 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             var hasDriverLocation = data.driver && typeof data.driver.latitude === 'number' && typeof data.driver.longitude === 'number';
 
             if (data.routeCoordinates && data.routeCoordinates.length > 1) {
+              var rColor = data.rideStatus === 'IN_PROGRESS' ? '#38bdf8' : '#10b981';
               if (!routeLine) {
-                routeLine = L.polyline(data.routeCoordinates, { color: '#10b981', weight: 5, opacity: 0.9 }).addTo(map);
+                routeLine = L.polyline(data.routeCoordinates, { color: rColor, weight: 5, opacity: 0.9 }).addTo(map);
               } else {
                 routeLine.setLatLngs(data.routeCoordinates);
+                routeLine.setStyle({ color: rColor });
               }
               if (!hasDriverLocation) {
                 map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
@@ -326,12 +328,23 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               }
 
               if (data.rideStatus === 'IN_PROGRESS') {
-                if (approachingLine) {
-                  map.removeLayer(approachingLine);
-                  approachingLine = null;
-                }
                 if (data.dropoff) {
-                  var inRideBounds = L.latLngBounds([dLoc, [data.dropoff.latitude, data.dropoff.longitude]]);
+                  var dropLoc = [data.dropoff.latitude, data.dropoff.longitude];
+                  if (!approachingLine) {
+                    approachingLine = L.polyline([dLoc, dropLoc], {
+                      color: '#38bdf8',
+                      weight: 4,
+                      dashArray: '5, 8',
+                      opacity: 0.95
+                    }).addTo(map);
+                  } else {
+                    approachingLine.setLatLngs([dLoc, dropLoc]);
+                    approachingLine.setStyle({ color: '#38bdf8' });
+                  }
+                  if (routeLine) {
+                    routeLine.setStyle({ color: '#38bdf8' });
+                  }
+                  var inRideBounds = L.latLngBounds([dLoc, dropLoc]);
                   map.fitBounds(inRideBounds, { padding: [60, 60], maxZoom: 16 });
                 }
               } else if (data.pickup) {

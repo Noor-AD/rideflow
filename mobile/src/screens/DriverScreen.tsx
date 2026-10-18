@@ -460,6 +460,8 @@ export const DriverScreen: React.FC = () => {
     setIncomingRequest({
       id: Math.floor(Math.random() * 900) + 100,
       rider: { id: 99, name: 'Priya Patel', email: 'priya@test.com', phone: '+919876543214', roles: ['ROLE_RIDER'] },
+      riderName: 'Priya Patel',
+      riderPhone: '+919876543214',
       pickupLat: 12.9716,
       pickupLng: 77.5946,
       pickupAddress: 'MG Road Metro Station',

@@ -224,6 +224,12 @@ export const driverApi = {
     const res = await apiClient.post<DriverProfile>('/drivers/onboard', payload, config);
     return res.data;
   },
+
+  // Update Driver GPS Coordinates (PUT /api/drivers/location)
+  updateLocation: async (latitude: number, longitude: number): Promise<DriverProfile> => {
+    const res = await apiClient.put<DriverProfile>('/drivers/location', { latitude, longitude });
+    return res.data;
+  },
 };
 
 // ==========================================

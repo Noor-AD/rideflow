@@ -441,7 +441,9 @@ public class RideService {
                     .driverName(ride.getDriver().getUser().getName())
                     .driverPhone(ride.getDriver().getUser().getPhone())
                     .vehiclePlate(ride.getDriver().getVehiclePlate())
-                    .vehicleModel(ride.getDriver().getVehicleModel());
+                    .vehicleModel(ride.getDriver().getVehicleModel())
+                    .driverLat(ride.getDriver().getCurrentLatitude())
+                    .driverLng(ride.getDriver().getCurrentLongitude());
         }
 
         return builder.build();

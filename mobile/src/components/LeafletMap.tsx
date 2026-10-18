@@ -3,34 +3,43 @@ import React, { useRef, useEffect } from 'react';
 import { StyleSheet, View, Platform } from 'react-native';
 import { WebView } from 'react-native-webview';
 
-interface Coordinates {
+export interface Coordinates {
   latitude: number;
   longitude: number;
 }
 
 interface LeafletMapProps {
-  pickupCoords: Coordinates;
-  dropoffCoords: Coordinates;
+  pickupCoords?: Coordinates;
+  dropoffCoords?: Coordinates;
   driverLocation?: Coordinates | null;
   pickupAddress?: string;
   dropoffAddress?: string;
   routeCoordinates?: [number, number][];
   rideStatus?: string;
+  isDriverView?: boolean;
 }
 
 export const LeafletMap: React.FC<LeafletMapProps> = ({
-  pickupCoords,
-  dropoffCoords,
+  pickupCoords = { latitude: 12.9716, longitude: 77.5946 },
+  dropoffCoords = { latitude: 12.9352, longitude: 77.6245 },
   driverLocation,
   pickupAddress = 'Pickup Point',
   dropoffAddress = 'Destination',
   routeCoordinates,
   rideStatus,
+  isDriverView = false,
 }) => {
   const webViewRef = useRef<WebView>(null);
   const iframeRef = useRef<any>(null);
 
-  // Generate the standalone HTML template with Leaflet & CartoDB Voyager tiles
+  const initialCenterLat = isDriverView && driverLocation
+    ? driverLocation.latitude
+    : pickupCoords.latitude;
+  const initialCenterLng = isDriverView && driverLocation
+    ? driverLocation.longitude
+    : pickupCoords.longitude;
+
+  // Generate the standalone HTML template with Leaflet & Esri World Street tiles
   const htmlContent = `
     <!DOCTYPE html>
     <html>
@@ -77,17 +86,27 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           font-size: 8px !important;
           background: rgba(255,255,255,0.7) !important;
         }
+        .driver-halo {
+          width: 22px;
+          height: 22px;
+          background: #3b82f6;
+          border: 3px solid #ffffff;
+          border-radius: 50%;
+          box-shadow: 0 0 15px rgba(59, 130, 246, 0.9);
+        }
       </style>
     </head>
     <body>
       <div id="map"></div>
       <script>
+        var isDriverView = ${isDriverView ? 'true' : 'false'};
+
         var map = L.map('map', {
           zoomControl: false,
           attributionControl: false
-        }).setView([${pickupCoords.latitude}, ${pickupCoords.longitude}], 14);
+        }).setView([${initialCenterLat}, ${initialCenterLng}], 15);
 
-        // High-Definition World Street Map Layer (Clean, 100% Free, NO watermarks or API keys required)
+        // High-Definition World Street Map Layer (Clean, Free, Fast)
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
           maxZoom: 19,
           attribution: 'Esri, HERE, Garmin, OpenStreetMap'
@@ -114,111 +133,227 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           iconAnchor: [18, 18]
         });
 
-        var pickupMarker = L.marker([${pickupCoords.latitude}, ${pickupCoords.longitude}], { icon: pickupIcon }).addTo(map);
-        var dropoffMarker = L.marker([${dropoffCoords.latitude}, ${dropoffCoords.longitude}], { icon: dropoffIcon }).addTo(map);
+        var pickupMarker = null;
+        var dropoffMarker = null;
         var driverMarker = null;
+        var routeLine = null;
         var approachingLine = null;
 
-        var initialRoute = ${JSON.stringify(
-          routeCoordinates && routeCoordinates.length > 1
-            ? routeCoordinates
-            : [
-                [pickupCoords.latitude, pickupCoords.longitude],
-                [dropoffCoords.latitude, dropoffCoords.longitude],
-              ]
-        )};
+        if (!isDriverView) {
+          pickupMarker = L.marker([${pickupCoords.latitude}, ${pickupCoords.longitude}], { icon: pickupIcon }).addTo(map);
+          dropoffMarker = L.marker([${dropoffCoords.latitude}, ${dropoffCoords.longitude}], { icon: dropoffIcon }).addTo(map);
 
-        var routeLine = L.polyline(initialRoute, {
-          color: '#10b981',
-          weight: 5,
-          opacity: 0.9,
-          smoothFactor: 1.2
-        }).addTo(map);
+          var initialRoute = ${JSON.stringify(
+            routeCoordinates && routeCoordinates.length > 1
+              ? routeCoordinates
+              : [
+                  [pickupCoords.latitude, pickupCoords.longitude],
+                  [dropoffCoords.latitude, dropoffCoords.longitude],
+                ]
+          )};
 
-        // Auto-fit bounds initially
-        map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
+          routeLine = L.polyline(initialRoute, {
+            color: '#10b981',
+            weight: 5,
+            opacity: 0.9,
+            smoothFactor: 1.2
+          }).addTo(map);
+
+          map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
+        } else {
+          // DRIVER VIEW INITIAL STATE
+          ${driverLocation ? `driverMarker = L.marker([${driverLocation.latitude}, ${driverLocation.longitude}], { icon: driverIcon }).addTo(map);` : ''}
+        }
 
         // Real-time update function called from React Native without reloading page
         window.updateCoordinates = function(data) {
-          if (data.pickup) {
-            pickupMarker.setLatLng([data.pickup.latitude, data.pickup.longitude]);
-          }
-          if (data.dropoff) {
-            dropoffMarker.setLatLng([data.dropoff.latitude, data.dropoff.longitude]);
-          }
-          var showDriver = data.driver && (data.rideStatus === 'ACCEPTED' || data.rideStatus === 'ARRIVED' || data.rideStatus === 'IN_PROGRESS');
+          if (!data) return;
 
-          if (data.routeCoordinates && data.routeCoordinates.length > 1) {
-            routeLine.setLatLngs(data.routeCoordinates);
-            map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
-          } else if (data.pickup && data.dropoff && !showDriver) {
-            routeLine.setLatLngs([
-              [data.pickup.latitude, data.pickup.longitude],
-              [data.dropoff.latitude, data.dropoff.longitude]
-            ]);
-            map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
-          }
-          if (showDriver) {
-            if (!driverMarker) {
-              driverMarker = L.marker([data.driver.latitude, data.driver.longitude], { icon: driverIcon }).addTo(map);
-            } else {
-              driverMarker.setLatLng([data.driver.latitude, data.driver.longitude]);
+          if (isDriverView) {
+            // ============================================
+            // 🚕 DRIVER APP MAP VIEW LOGIC
+            // ============================================
+            if (data.driver && typeof data.driver.latitude === 'number' && typeof data.driver.longitude === 'number') {
+              var dPos = [data.driver.latitude, data.driver.longitude];
+              if (!driverMarker) {
+                driverMarker = L.marker(dPos, { icon: driverIcon }).addTo(map);
+              } else {
+                driverMarker.setLatLng(dPos);
+              }
             }
 
-            if (data.rideStatus === 'IN_PROGRESS') {
-              // During trip to destination: clear pickup approach line and track vehicle towards dropoff
+            var hasActiveRide = data.rideStatus === 'ACCEPTED' || data.rideStatus === 'ARRIVED' || data.rideStatus === 'IN_PROGRESS';
+
+            if (!hasActiveRide) {
+              // Idle / Waiting for rides
+              if (pickupMarker) { map.removeLayer(pickupMarker); pickupMarker = null; }
+              if (dropoffMarker) { map.removeLayer(dropoffMarker); dropoffMarker = null; }
+              if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+              if (data.driver) {
+                map.setView([data.driver.latitude, data.driver.longitude], 15);
+              }
+              return;
+            }
+
+            if (data.rideStatus === 'ACCEPTED' || data.rideStatus === 'ARRIVED') {
+              // 1. Heading to Passenger Pickup
+              if (data.pickup && typeof data.pickup.latitude === 'number') {
+                var pPos = [data.pickup.latitude, data.pickup.longitude];
+                if (!pickupMarker) {
+                  pickupMarker = L.marker(pPos, { icon: pickupIcon }).addTo(map);
+                } else {
+                  pickupMarker.setLatLng(pPos);
+                }
+              }
+              if (dropoffMarker) { map.removeLayer(dropoffMarker); dropoffMarker = null; }
+
+              var navRoute = (data.routeCoordinates && data.routeCoordinates.length > 1)
+                ? data.routeCoordinates
+                : (data.driver && data.pickup ? [[data.driver.latitude, data.driver.longitude], [data.pickup.latitude, data.pickup.longitude]] : []);
+
+              if (navRoute.length > 1) {
+                if (!routeLine) {
+                  routeLine = L.polyline(navRoute, { color: '#38bdf8', weight: 5, opacity: 0.95 }).addTo(map);
+                } else {
+                  routeLine.setLatLngs(navRoute);
+                  routeLine.setStyle({ color: '#38bdf8' });
+                }
+                map.fitBounds(routeLine.getBounds(), { padding: [60, 60], maxZoom: 17 });
+              }
+            } else if (data.rideStatus === 'IN_PROGRESS') {
+              // 2. Heading to Dropoff Destination
+              if (pickupMarker) { map.removeLayer(pickupMarker); pickupMarker = null; }
+              if (data.dropoff && typeof data.dropoff.latitude === 'number') {
+                var dropPos = [data.dropoff.latitude, data.dropoff.longitude];
+                if (!dropoffMarker) {
+                  dropoffMarker = L.marker(dropPos, { icon: dropoffIcon }).addTo(map);
+                } else {
+                  dropoffMarker.setLatLng(dropPos);
+                }
+              }
+
+              var tripRoute = (data.routeCoordinates && data.routeCoordinates.length > 1)
+                ? data.routeCoordinates
+                : (data.driver && data.dropoff ? [[data.driver.latitude, data.driver.longitude], [data.dropoff.latitude, data.dropoff.longitude]] : []);
+
+              if (tripRoute.length > 1) {
+                if (!routeLine) {
+                  routeLine = L.polyline(tripRoute, { color: '#10b981', weight: 5, opacity: 0.95 }).addTo(map);
+                } else {
+                  routeLine.setLatLngs(tripRoute);
+                  routeLine.setStyle({ color: '#10b981' });
+                }
+                map.fitBounds(routeLine.getBounds(), { padding: [60, 60], maxZoom: 17 });
+              }
+            }
+          } else {
+            // ============================================
+            // 🧍 RIDER APP MAP VIEW LOGIC
+            // ============================================
+            if (data.pickup) {
+              if (!pickupMarker) {
+                pickupMarker = L.marker([data.pickup.latitude, data.pickup.longitude], { icon: pickupIcon }).addTo(map);
+              } else {
+                pickupMarker.setLatLng([data.pickup.latitude, data.pickup.longitude]);
+              }
+            }
+            if (data.dropoff) {
+              if (!dropoffMarker) {
+                dropoffMarker = L.marker([data.dropoff.latitude, data.dropoff.longitude], { icon: dropoffIcon }).addTo(map);
+              } else {
+                dropoffMarker.setLatLng([data.dropoff.latitude, data.dropoff.longitude]);
+              }
+            }
+
+            var hasDriverLocation = data.driver && typeof data.driver.latitude === 'number' && typeof data.driver.longitude === 'number';
+
+            if (data.routeCoordinates && data.routeCoordinates.length > 1) {
+              if (!routeLine) {
+                routeLine = L.polyline(data.routeCoordinates, { color: '#10b981', weight: 5, opacity: 0.9 }).addTo(map);
+              } else {
+                routeLine.setLatLngs(data.routeCoordinates);
+              }
+              if (!hasDriverLocation) {
+                map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
+              }
+            } else if (data.pickup && data.dropoff && !hasDriverLocation) {
+              var pLine = [
+                [data.pickup.latitude, data.pickup.longitude],
+                [data.dropoff.latitude, data.dropoff.longitude]
+              ];
+              if (!routeLine) {
+                routeLine = L.polyline(pLine, { color: '#10b981', weight: 5, opacity: 0.9 }).addTo(map);
+              } else {
+                routeLine.setLatLngs(pLine);
+              }
+              map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
+            }
+
+            if (hasDriverLocation) {
+              var dLoc = [data.driver.latitude, data.driver.longitude];
+              if (!driverMarker) {
+                driverMarker = L.marker(dLoc, { icon: driverIcon }).addTo(map);
+              } else {
+                driverMarker.setLatLng(dLoc);
+              }
+
+              if (data.rideStatus === 'IN_PROGRESS') {
+                if (approachingLine) {
+                  map.removeLayer(approachingLine);
+                  approachingLine = null;
+                }
+                if (data.dropoff) {
+                  var inRideBounds = L.latLngBounds([dLoc, [data.dropoff.latitude, data.dropoff.longitude]]);
+                  map.fitBounds(inRideBounds, { padding: [60, 60], maxZoom: 16 });
+                }
+              } else if (data.pickup) {
+                var pLoc = [data.pickup.latitude, data.pickup.longitude];
+                if (!approachingLine) {
+                  approachingLine = L.polyline([dLoc, pLoc], {
+                    color: '#38bdf8',
+                    weight: 3.5,
+                    dashArray: '4, 6',
+                    opacity: 0.95
+                  }).addTo(map);
+                } else {
+                  approachingLine.setLatLngs([dLoc, pLoc]);
+                }
+                var approachBounds = L.latLngBounds([dLoc, pLoc]);
+                map.fitBounds(approachBounds, { padding: [60, 60], maxZoom: 16 });
+              }
+            } else {
+              if (driverMarker) {
+                map.removeLayer(driverMarker);
+                driverMarker = null;
+              }
               if (approachingLine) {
                 map.removeLayer(approachingLine);
                 approachingLine = null;
               }
-              if (data.dropoff) {
-                var inRideBounds = L.latLngBounds([
-                  [data.driver.latitude, data.driver.longitude],
-                  [data.dropoff.latitude, data.dropoff.longitude]
-                ]);
-                map.fitBounds(inRideBounds, { padding: [60, 60], maxZoom: 16 });
-              }
-            } else if (data.pickup) {
-              if (!approachingLine) {
-                approachingLine = L.polyline([
-                  [data.driver.latitude, data.driver.longitude],
-                  [data.pickup.latitude, data.pickup.longitude]
-                ], {
-                  color: '#38bdf8',
-                  weight: 3.5,
-                  dashArray: '4, 6',
-                  opacity: 0.95
-                }).addTo(map);
-              } else {
-                approachingLine.setLatLngs([
-                  [data.driver.latitude, data.driver.longitude],
-                  [data.pickup.latitude, data.pickup.longitude]
-                ]);
-              }
-
-              var approachBounds = L.latLngBounds([
-                [data.driver.latitude, data.driver.longitude],
-                [data.pickup.latitude, data.pickup.longitude]
-              ]);
-              map.fitBounds(approachBounds, { padding: [60, 60], maxZoom: 16 });
-            }
-          } else {
-            if (driverMarker) {
-              map.removeLayer(driverMarker);
-              driverMarker = null;
-            }
-            if (approachingLine) {
-              map.removeLayer(approachingLine);
-              approachingLine = null;
             }
           }
         };
 
         window.recenter = function() {
-          if (routeLine) {
+          if (isDriverView && driverMarker) {
+            map.setView(driverMarker.getLatLng(), 16);
+          } else if (routeLine) {
             map.fitBounds(routeLine.getBounds(), { padding: [60, 60] });
           }
         };
+
+        // Initial sync of coordinates on DOM mount
+        try {
+          window.updateCoordinates({
+            pickup: ${JSON.stringify(pickupCoords)},
+            dropoff: ${JSON.stringify(dropoffCoords)},
+            driver: ${JSON.stringify(driverLocation || null)},
+            routeCoordinates: ${JSON.stringify(routeCoordinates || null)},
+            rideStatus: ${JSON.stringify(rideStatus || null)}
+          });
+        } catch (e) {
+          console.error("Initial updateCoordinates error:", e);
+        }
       </script>
     </body>
     </html>
@@ -289,4 +424,3 @@ const styles = StyleSheet.create({
     backgroundColor: '#0f172a',
   },
 });
-

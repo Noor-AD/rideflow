@@ -246,8 +246,8 @@ export const RiderScreen: React.FC = () => {
       });
 
       if (status === 'ACCEPTED' || status === 'ARRIVED' || status === 'IN_PROGRESS') {
-        const dLat = event.driverLat || event.data?.driverLat;
-        const dLng = event.driverLng || event.data?.driverLng;
+        const dLat = event.driverLat || event.data?.driverLat || (event.data?.driver as any)?.currentLatitude;
+        const dLng = event.driverLng || event.data?.driverLng || (event.data?.driver as any)?.currentLongitude;
         if (dLat && dLng) {
           setDriverLocation({
             latitude: dLat,
@@ -261,8 +261,7 @@ export const RiderScreen: React.FC = () => {
 
     // B. Subscribe to high-frequency live driver GPS coordinates
     const unsubLocation = mobileWs.subscribeToDriverLocation(activeRide.id, (loc) => {
-      // Only display driver location once driver has accepted
-      if (activeRide.status === 'ACCEPTED' || activeRide.status === 'ARRIVED' || activeRide.status === 'IN_PROGRESS') {
+      if (loc && typeof loc.latitude === 'number' && typeof loc.longitude === 'number') {
         setDriverLocation({
           latitude: loc.latitude,
           longitude: loc.longitude,
@@ -1111,9 +1110,9 @@ export const RiderScreen: React.FC = () => {
           currentUserId={user?.id || 1}
           currentUserName={user?.name || 'Passenger'}
           currentUserRole="ROLE_RIDER"
-          counterpartName={activeRide.driver?.user?.name || (activeRide as any).driverName || 'Driver'}
-          vehicleModel={activeRide.driver?.vehicleModel || (activeRide as any).vehicleModel || `${activeRide.vehicleType || 'RideFlow'} Car`}
-          vehiclePlate={activeRide.driver?.vehiclePlate || (activeRide as any).vehiclePlate || 'KA-01-EQ-9872'}
+          counterpartName={activeRide.driver?.user?.name || 'Driver'}
+          vehicleModel={activeRide.driver?.vehicleModel || `${activeRide.vehicleType || 'RideFlow'} Car`}
+          vehiclePlate={activeRide.driver?.vehiclePlate || 'KA-01-EQ-9872'}
         />
       )}
 

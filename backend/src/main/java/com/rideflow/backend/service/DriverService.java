@@ -141,4 +141,17 @@ public class DriverService {
                 .longitude(lng)
                 .build();
     }
+
+    @Transactional
+    public void updateDriverLocationDirect(Long driverIdOrUserId, Double lat, Double lng) {
+        if (lat == null || lng == null || driverIdOrUserId == null) return;
+        DriverProfile driver = driverRepository.findById(driverIdOrUserId)
+                .or(() -> driverRepository.findByUserId(driverIdOrUserId))
+                .orElse(null);
+        if (driver != null) {
+            driver.setCurrentLatitude(lat);
+            driver.setCurrentLongitude(lng);
+            driverRepository.save(driver);
+        }
+    }
 }

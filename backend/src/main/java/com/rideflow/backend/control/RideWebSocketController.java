@@ -18,9 +18,32 @@ import lombok.extern.slf4j.Slf4j;
 public class RideWebSocketController {
 
     private final ChatService chatService;
+    private final com.rideflow.backend.service.DriverService driverService;
+    private final org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
 
     /**
-     * Driver streams GPS location packets here:
+     * General driver GPS location telemetry (when online):
+     * SEND destination: /app/driver/location
+     * Forwarded to: /topic/drivers/location (e.g. Admin Dashboard & Nearby lookups)
+     */
+    @MessageMapping("/driver/location")
+    @SendTo("/topic/drivers/location")
+    public DriverLocationPayload handleGeneralDriverLocation(DriverLocationPayload payload) {
+        if (payload.getTimestamp() == null) {
+            payload.setTimestamp(System.currentTimeMillis());
+        }
+        if (payload.getDriverId() != null && payload.getLatitude() != null && payload.getLongitude() != null) {
+            try {
+                driverService.updateDriverLocationDirect(payload.getDriverId(), payload.getLatitude(), payload.getLongitude());
+            } catch (Exception e) {
+                log.warn("Could not persist driver location: {}", e.getMessage());
+            }
+        }
+        return payload;
+    }
+
+    /**
+     * Driver streams GPS location packets during an active ride:
      * SEND destination: /app/rides/{rideId}/location
      *
      * Automatically forwarded to subscribers listening on:
@@ -35,6 +58,15 @@ public class RideWebSocketController {
         payload.setRideId(rideId);
         if (payload.getTimestamp() == null) {
             payload.setTimestamp(System.currentTimeMillis());
+        }
+        if (payload.getDriverId() != null && payload.getLatitude() != null && payload.getLongitude() != null) {
+            try {
+                driverService.updateDriverLocationDirect(payload.getDriverId(), payload.getLatitude(), payload.getLongitude());
+                // Also notify admin fleet map
+                messagingTemplate.convertAndSend("/topic/drivers/location", payload);
+            } catch (Exception e) {
+                log.warn("Could not persist in-ride driver location: {}", e.getMessage());
+            }
         }
         return payload;
     }

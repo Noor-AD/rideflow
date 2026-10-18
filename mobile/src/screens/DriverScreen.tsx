@@ -10,16 +10,19 @@ import {
   TextInput,
   Modal,
   Alert,
+  Linking,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { useAuth } from '../context/AuthContext';
 import { rideApi, driverApi, walletApi } from '../api/client';
 import { mobileWs } from '../api/websocket';
+import { LeafletMap } from '../components/LeafletMap';
 import { DriverEarningsModal } from '../components/DriverEarningsModal';
 import { InRideChatModal } from '../components/InRideChatModal';
 import { EditProfileModal } from '../components/EditProfileModal';
-import { navigationService } from '../services/navigationService';
+import { navigationService, type RouteDetails } from '../services/navigationService';
 import type { Ride } from '../types';
 import {
   Power,
@@ -38,6 +41,7 @@ import {
   TrendingUp,
   MessageSquare,
   Edit2,
+  ExternalLink,
 } from 'lucide-react-native';
 
 export const DriverScreen: React.FC = () => {
@@ -51,6 +55,10 @@ export const DriverScreen: React.FC = () => {
   const [otpInput, setOtpInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const locationSubRef = useRef<Location.LocationSubscription | null>(null);
+
+  // Driver GPS Location & Navigation State
+  const [driverCoords, setDriverCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [navRoute, setNavRoute] = useState<RouteDetails | null>(null);
 
   // History State
   const [showHistory, setShowHistory] = useState(false);
@@ -112,6 +120,50 @@ export const DriverScreen: React.FC = () => {
     })();
   }, []);
 
+  // Helper to persist physical GPS location in state, database, and WebSocket broker
+  const syncDriverLocation = (lat: number, lng: number, heading = 0, speed = 0) => {
+    setDriverCoords({ latitude: lat, longitude: lng });
+
+    // 1. Persist directly in PostgreSQL DB so dispatcher and rideService know real driver coordinates (e.g. BTM)
+    driverApi.updateLocation(lat, lng).catch((err) => {
+      console.warn('Backend location sync:', err?.message);
+    });
+
+    // 2. Stream real-time GPS packet to Spring Boot STOMP broker
+    const payload = {
+      driverId: user?.id || 1,
+      latitude: lat,
+      longitude: lng,
+      heading,
+      bearing: heading,
+      speed,
+      timestamp: Date.now(),
+    };
+    mobileWs.sendDriverLocation(payload, activeRideRef.current?.id);
+  };
+
+  // Immediate GPS fix on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+          syncDriverLocation(
+            loc.coords.latitude,
+            loc.coords.longitude,
+            loc.coords.heading || 0,
+            loc.coords.speed || 0
+          );
+        } else {
+          setDriverCoords({ latitude: 12.9190, longitude: 77.6112 });
+        }
+      } catch (err) {
+        setDriverCoords((prev) => prev || { latitude: 12.9190, longitude: 77.6112 });
+      }
+    })();
+  }, [user?.id]);
+
   // 2. Background / Foreground GPS Location Streaming
   useEffect(() => {
     mobileWs.connect();
@@ -122,6 +174,14 @@ export const DriverScreen: React.FC = () => {
         try {
           const { status } = await Location.requestForegroundPermissionsAsync();
           if (status === 'granted') {
+            const initialLoc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+            syncDriverLocation(
+              initialLoc.coords.latitude,
+              initialLoc.coords.longitude,
+              initialLoc.coords.heading || 0,
+              initialLoc.coords.speed || 0
+            );
+
             locationSubRef.current = await Location.watchPositionAsync(
               {
                 accuracy: Location.Accuracy.High,
@@ -129,18 +189,12 @@ export const DriverScreen: React.FC = () => {
                 distanceInterval: 5, // Or every 5 meters
               },
               (location) => {
-                const payload = {
-                  driverId: user?.id || 1,
-                  latitude: location.coords.latitude,
-                  longitude: location.coords.longitude,
-                  heading: location.coords.heading || 0,
-                  bearing: location.coords.heading || 0,
-                  speed: location.coords.speed || 0,
-                  timestamp: Date.now(),
-                };
-
-                // Stream directly to Spring Boot broker for this active ride
-                mobileWs.sendDriverLocation(payload, activeRideRef.current?.id);
+                syncDriverLocation(
+                  location.coords.latitude,
+                  location.coords.longitude,
+                  location.coords.heading || 0,
+                  location.coords.speed || 0
+                );
               }
             );
           }
@@ -162,6 +216,62 @@ export const DriverScreen: React.FC = () => {
       }
     };
   }, [isOnline, user?.id]);
+
+  // Calculate road navigation route from driver's current coordinates to pickup / dropoff
+  useEffect(() => {
+    if (!activeRide) {
+      setNavRoute(null);
+      return;
+    }
+
+    const currentLoc = driverCoords || { latitude: 12.9190, longitude: 77.6112 };
+    let destination = { latitude: activeRide.pickupLat, longitude: activeRide.pickupLng };
+    if (activeRide.status === 'IN_PROGRESS') {
+      destination = { latitude: activeRide.dropoffLat, longitude: activeRide.dropoffLng };
+    }
+
+    let isMounted = true;
+    navigationService
+      .getDrivingRoute(currentLoc, destination)
+      .then((route) => {
+        if (isMounted && route) {
+          setNavRoute(route);
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to calculate navigation route:', err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    activeRide?.id,
+    activeRide?.status,
+    activeRide?.pickupLat,
+    activeRide?.pickupLng,
+    activeRide?.dropoffLat,
+    activeRide?.dropoffLng,
+  ]);
+
+  // Open external Turn-by-Turn GPS navigation (Google Maps / Apple Maps)
+  const handleOpenExternalNavigation = () => {
+    if (!activeRide) return;
+    const isEnRouteToDropoff = activeRide.status === 'IN_PROGRESS';
+    const targetLat = isEnRouteToDropoff ? activeRide.dropoffLat : activeRide.pickupLat;
+    const targetLng = isEnRouteToDropoff ? activeRide.dropoffLng : activeRide.pickupLng;
+    const targetAddress = isEnRouteToDropoff ? activeRide.dropoffAddress : activeRide.pickupAddress;
+
+    const url = Platform.select({
+      ios: `maps:0,0?q=${encodeURIComponent(targetAddress || 'Destination')}@${targetLat},${targetLng}`,
+      android: `google.navigation:q=${targetLat},${targetLng}`,
+      default: `https://www.google.com/maps/dir/?api=1&destination=${targetLat},${targetLng}&travelmode=driving`,
+    });
+
+    Linking.openURL(url!).catch(() => {
+      Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${targetLat},${targetLng}&travelmode=driving`);
+    });
+  };
 
   // 3. Listen for Incoming Ride Dispatch Requests
   useEffect(() => {
@@ -397,6 +507,80 @@ export const DriverScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
+        {/* INTERACTIVE DRIVER NAVIGATION MAP */}
+        <View style={styles.driverMapContainer}>
+          <View style={styles.mapHeaderBar}>
+            <View style={styles.mapHeaderLeft}>
+              <Navigation size={14} color="#38bdf8" />
+              <Text style={styles.mapHeaderTitle}>
+                {activeRide
+                  ? activeRide.status === 'IN_PROGRESS'
+                    ? 'Navigating to Dropoff Destination'
+                    : 'Navigating to Passenger Pickup'
+                  : isOnline
+                  ? 'Live GPS • Driver Active'
+                  : 'Driver Radar (Offline)'}
+              </Text>
+            </View>
+            {activeRide && (
+              <TouchableOpacity
+                style={styles.openNavHeaderBtn}
+                onPress={handleOpenExternalNavigation}
+                accessibilityLabel="Open External Navigation"
+              >
+                <ExternalLink size={12} color="#020617" />
+                <Text style={styles.openNavHeaderBtnText}>Google Maps</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <View style={styles.mapViewport}>
+            <LeafletMap
+              pickupCoords={
+                activeRide
+                  ? { latitude: activeRide.pickupLat, longitude: activeRide.pickupLng }
+                  : (driverCoords || { latitude: 12.9190, longitude: 77.6112 })
+              }
+              dropoffCoords={
+                activeRide
+                  ? { latitude: activeRide.dropoffLat, longitude: activeRide.dropoffLng }
+                  : undefined
+              }
+              driverLocation={driverCoords || { latitude: 12.9190, longitude: 77.6112 }}
+              pickupAddress={activeRide ? activeRide.pickupAddress : 'Your Current Location'}
+              dropoffAddress={activeRide ? activeRide.dropoffAddress : undefined}
+              routeCoordinates={navRoute?.coordinates}
+              rideStatus={activeRide?.status}
+              isDriverView={true}
+            />
+          </View>
+
+          {/* Route Distance / Duration Banner */}
+          {activeRide && navRoute && (
+            <View style={styles.mapRouteBanner}>
+              <View style={styles.mapRouteStat}>
+                <Clock size={13} color="#38bdf8" />
+                <Text style={styles.mapRouteStatValue}>{navRoute.durationMins} mins</Text>
+                <Text style={styles.mapRouteStatLabel}>EST. TIME</Text>
+              </View>
+              <View style={styles.mapRouteDivider} />
+              <View style={styles.mapRouteStat}>
+                <Navigation size={13} color="#10b981" />
+                <Text style={styles.mapRouteStatValue}>{navRoute.distanceKm} km</Text>
+                <Text style={styles.mapRouteStatLabel}>DISTANCE</Text>
+              </View>
+              <View style={styles.mapRouteDivider} />
+              <TouchableOpacity
+                style={styles.mapTurnByTurnBtn}
+                onPress={handleOpenExternalNavigation}
+              >
+                <ExternalLink size={13} color="#ffffff" />
+                <Text style={styles.mapTurnByTurnBtnText}>Start GPS</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
         {/* DRIVER KPI CARDS */}
         <View style={styles.statsRow}>
           <TouchableOpacity style={styles.statBox} onPress={() => setShowEarningsModal(true)}>
@@ -425,21 +609,15 @@ export const DriverScreen: React.FC = () => {
             </View>
 
             {/* Passenger Details */}
-            {(() => {
-              const passengerName = activeRide.rider?.name || (activeRide as any).riderName || 'Passenger';
-              const passengerPhone = activeRide.rider?.phone || (activeRide as any).riderPhone || 'Contact via chat';
-              return (
-                <View style={styles.riderInfoRow}>
-                  <View style={styles.riderAvatar}>
-                    <Text style={styles.riderAvatarText}>{passengerName.charAt(0).toUpperCase() || 'P'}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.riderName}>{passengerName}</Text>
-                    <Text style={styles.riderPhone}>{passengerPhone}</Text>
-                  </View>
-                </View>
-              );
-            })()}
+            <View style={styles.riderInfoRow}>
+              <View style={styles.riderAvatar}>
+                <Text style={styles.riderAvatarText}>{activeRide.rider.name.charAt(0)}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.riderName}>{activeRide.rider.name}</Text>
+                <Text style={styles.riderPhone}>{activeRide.rider.phone}</Text>
+              </View>
+            </View>
 
             {/* IN-RIDE LIVE CHAT BUTTON WITH UNREAD BADGE */}
             <TouchableOpacity
@@ -484,6 +662,19 @@ export const DriverScreen: React.FC = () => {
                 <Text style={styles.routeText}>{activeRide.dropoffAddress}</Text>
               </View>
             </View>
+
+            {/* Direct Google Maps Navigation Button */}
+            <TouchableOpacity
+              style={styles.navigateOuterBtn}
+              onPress={handleOpenExternalNavigation}
+            >
+              <ExternalLink size={15} color="#020617" />
+              <Text style={styles.navigateOuterBtnText}>
+                {activeRide.status === 'IN_PROGRESS'
+                  ? 'Open Navigation to Destination (Google Maps)'
+                  : 'Open Navigation to Passenger (Google Maps)'}
+              </Text>
+            </TouchableOpacity>
 
             {/* ACTION 1: ARRIVED AT PICKUP */}
             {activeRide.status === 'ACCEPTED' && (
@@ -689,7 +880,7 @@ export const DriverScreen: React.FC = () => {
           currentUserId={user?.id || 2}
           currentUserName={user?.name || 'Driver'}
           currentUserRole="ROLE_DRIVER"
-          counterpartName={activeRide.rider?.name || (activeRide as any).riderName || 'Passenger'}
+          counterpartName={activeRide.rider?.name || 'Passenger'}
         />
       )}
 
@@ -706,6 +897,113 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#020617',
+  },
+  driverMapContainer: {
+    backgroundColor: '#0f172a',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#1e293b',
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  mapHeaderBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: '#0f172a',
+    borderBottomWidth: 1,
+    borderBottomColor: '#1e293b',
+  },
+  mapHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  mapHeaderTitle: {
+    color: '#e2e8f0',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  openNavHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#38bdf8',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  openNavHeaderBtnText: {
+    color: '#020617',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  mapViewport: {
+    width: '100%',
+    height: 280,
+    backgroundColor: '#0f172a',
+  },
+  mapRouteBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: '#1e293b',
+    borderTopWidth: 1,
+    borderTopColor: '#334155',
+  },
+  mapRouteStat: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+  },
+  mapRouteStatValue: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  mapRouteStatLabel: {
+    color: '#94a3b8',
+    fontSize: 9,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  mapRouteDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: '#334155',
+  },
+  mapTurnByTurnBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#0284c7',
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  mapTurnByTurnBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  navigateOuterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#38bdf8',
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  navigateOuterBtnText: {
+    color: '#020617',
+    fontSize: 13,
+    fontWeight: '700',
   },
   earningsTopBtn: {
     flexDirection: 'row',

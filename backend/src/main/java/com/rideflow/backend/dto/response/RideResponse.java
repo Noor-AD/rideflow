@@ -32,6 +32,8 @@ public class RideResponse {
     private String driverPhone;
     private String vehiclePlate;
     private String vehicleModel;
+    private Double driverLat;
+    private Double driverLng;
 
     // Route & Locations
     private Double pickupLat;

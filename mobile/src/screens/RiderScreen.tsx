@@ -134,6 +134,12 @@ export const RiderScreen: React.FC = () => {
 
       setPickupCoords({ latitude: lat, longitude: lng });
       setPickupAddress(resolvedAddr);
+      setDropoffCoords((prev) => {
+        if (Math.abs(prev.latitude - lat) > 0.1 || Math.abs(prev.longitude - lng) > 0.1) {
+          return { latitude: lat + 0.02, longitude: lng + 0.015 };
+        }
+        return prev;
+      });
 
       if (!silent) {
         Alert.alert('Pickup Location Set', `Your exact GPS pickup location has been set to:\n${resolvedAddr}`);
@@ -161,7 +167,7 @@ export const RiderScreen: React.FC = () => {
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleType>('PREMIUM');
   const [activeRide, setActiveRide] = useState<Ride | null>(null);
   const [isBooking, setIsBooking] = useState(false);
-  const [driverLocation, setDriverLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [driverLocation, setDriverLocation] = useState<{ latitude: number; longitude: number; heading?: number; bearing?: number } | null>(null);
   const simIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // History & Rating States
@@ -231,30 +237,6 @@ export const RiderScreen: React.FC = () => {
     })();
   }, []);
 
-  // 2. Request GPS Permission on Mount
-  useEffect(() => {
-    (async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
-          const loc = await Location.getCurrentPositionAsync({});
-          const currentPickup = {
-            latitude: loc.coords.latitude,
-            longitude: loc.coords.longitude,
-          };
-          const currentDropoff = {
-            latitude: loc.coords.latitude + 0.025,
-            longitude: loc.coords.longitude + 0.02,
-          };
-          setPickupCoords(currentPickup);
-          setPickupAddress('My Current Location');
-          setDropoffCoords(currentDropoff);
-        }
-      } catch (err) {
-        console.log('📍 GPS permission unavailable or offline, defaulting to Bangalore center fallback');
-      }
-    })();
-  }, []);
 
   // 2.5 Fetch real street road route & geometry whenever pickupCoords or dropoffCoords change
   useEffect(() => {
@@ -347,6 +329,8 @@ export const RiderScreen: React.FC = () => {
         setDriverLocation({
           latitude: loc.latitude,
           longitude: loc.longitude,
+          heading: (loc as any).heading ?? loc.bearing,
+          bearing: loc.bearing ?? (loc as any).heading,
         });
       }
     });
@@ -545,6 +529,12 @@ export const RiderScreen: React.FC = () => {
 
   // Smooth live telemetry approaching simulator for demo & testing
   const startDriverApproachSimulation = () => {
+    // If a real driver is assigned to the ride, do not run simulation
+    if (activeRide && (activeRide.driver || activeRide.driverId || activeRide.driverName)) {
+      Alert.alert('Live Trip Active', 'A real driver is assigned to your ride. GPS tracking is live.');
+      return;
+    }
+
     if (simIntervalRef.current) {
       clearInterval(simIntervalRef.current);
     }
@@ -562,7 +552,7 @@ export const RiderScreen: React.FC = () => {
     const stepLng = (targetLng - currentLng) / totalSteps;
     let currentStep = 0;
 
-    setDriverLocation({ latitude: currentLat, longitude: currentLng });
+    setDriverLocation({ latitude: currentLat, longitude: currentLng, heading: 225, bearing: 225 });
 
     simIntervalRef.current = setInterval(() => {
       currentStep++;
@@ -572,10 +562,12 @@ export const RiderScreen: React.FC = () => {
       setDriverLocation({
         latitude: currentLat,
         longitude: currentLng,
+        heading: 225,
+        bearing: 225,
       });
 
-      // Stream to WebSocket broker as well
-      if (activeRide) {
+      // Stream to WebSocket broker as well only for demo rides without real driver
+      if (activeRide && !activeRide.driver && !activeRide.driverId && !activeRide.driverName) {
         mobileWs.sendDriverLocation({
           driverId: 1,
           latitude: currentLat,
@@ -956,6 +948,15 @@ export const RiderScreen: React.FC = () => {
                     {activeRide.status === 'ARRIVED'
                       ? 'Driver has arrived outside!'
                       : 'Driver approaching • Live GPS tracking'}
+                  </Text>
+                </View>
+              </View>
+            ) : (activeRide.driver || activeRide.driverName || activeRide.driverId) ? (
+              <View style={styles.enRouteBanner}>
+                <View style={styles.enRouteLeft}>
+                  <ActivityIndicator size="small" color="#38bdf8" />
+                  <Text style={styles.enRouteText}>
+                    Driver matched • Connecting to live GPS...
                   </Text>
                 </View>
               </View>

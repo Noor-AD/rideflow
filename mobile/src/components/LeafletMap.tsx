@@ -6,6 +6,8 @@ import { WebView } from 'react-native-webview';
 export interface Coordinates {
   latitude: number;
   longitude: number;
+  heading?: number;
+  bearing?: number;
 }
 
 interface LeafletMapProps {
@@ -79,20 +81,37 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           70% { box-shadow: 0 0 0 10px rgba(56, 189, 248, 0); }
           100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
         }
-        .leaflet-marker-icon {
-          transition: transform 0.4s linear;
+        .driver-marker-box {
+          position: relative;
+          width: 44px;
+          height: 44px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .driver-pulse-ring {
+          position: absolute;
+          width: 42px;
+          height: 42px;
+          border-radius: 50%;
+          background: rgba(56, 189, 248, 0.28);
+          animation: pulse-ring 2s infinite;
+        }
+        .driver-arrow-disc {
+          width: 32px;
+          height: 32px;
+          background: #0284c7;
+          border: 2.5px solid #ffffff;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+          transition: transform 0.3s ease-out;
         }
         .leaflet-control-attribution {
           font-size: 8px !important;
           background: rgba(255,255,255,0.7) !important;
-        }
-        .driver-halo {
-          width: 22px;
-          height: 22px;
-          background: #3b82f6;
-          border: 3px solid #ffffff;
-          border-radius: 50%;
-          box-shadow: 0 0 15px rgba(59, 130, 246, 0.9);
         }
         .marker-pill {
           background: rgba(15, 23, 42, 0.92) !important;
@@ -143,13 +162,59 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           iconAnchor: [16, 16]
         });
 
-        // Driver Car Icon
-        var driverIcon = L.divIcon({
-          className: '',
-          html: '<div class="pin-wrapper driver-pin"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.8C2.1 11.2 2 11.6 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></div>',
-          iconSize: [36, 36],
-          iconAnchor: [18, 18]
-        });
+        // Dynamic Rotating Navigation Chevron Vehicle Icon
+        function createDriverIcon(heading) {
+          var rot = typeof heading === 'number' && !isNaN(heading) ? Math.round(heading) : 0;
+          return L.divIcon({
+            className: '',
+            html: '<div class="driver-marker-box">' +
+                  '  <div class="driver-pulse-ring"></div>' +
+                  '  <div class="driver-arrow-disc" id="driver-arrow-disc" style="transform: rotate(' + rot + 'deg);">' +
+                  '    <svg width="20" height="20" viewBox="0 0 24 24" stroke="#0284c7" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
+                  '      <polygon points="12 2 19 21 12 17 5 21 12 2" fill="#ffffff"/>' +
+                  '    </svg>' +
+                  '  </div>' +
+                  '</div>',
+            iconSize: [44, 44],
+            iconAnchor: [22, 22]
+          });
+        }
+
+        function updateDriverHeading(heading) {
+          if (typeof heading !== 'number' || isNaN(heading)) return;
+          var disc = document.getElementById('driver-arrow-disc');
+          if (disc) {
+            disc.style.transform = 'rotate(' + Math.round(heading) + 'deg)';
+          }
+        }
+
+        // Bearing & Distance Calculations for Direction of Travel
+        function computeBearing(lat1, lon1, lat2, lon2) {
+          var dLon = (lon2 - lon1) * Math.PI / 180;
+          var lat1R = lat1 * Math.PI / 180;
+          var lat2R = lat2 * Math.PI / 180;
+          var y = Math.sin(dLon) * Math.cos(lat2R);
+          var x = Math.cos(lat1R) * Math.sin(lat2R) - Math.sin(lat1R) * Math.cos(lat2R) * Math.cos(dLon);
+          var brng = Math.atan2(y, x) * 180 / Math.PI;
+          return (brng + 360) % 360;
+        }
+
+        function computeDistanceMeters(lat1, lon1, lat2, lon2) {
+          var R = 6371e3;
+          var dLat = (lat2 - lat1) * Math.PI / 180;
+          var dLon = (lon2 - lon1) * Math.PI / 180;
+          var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+          var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          return R * c;
+        }
+
+        var prevDriverLat = null;
+        var prevDriverLng = null;
+        var currentHeading = 0;
+        var lastFittedRideStatus = null;
+        var hasInitialFitted = false;
 
         var pickupMarker = null;
         var dropoffMarker = null;
@@ -181,30 +246,53 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           }).addTo(map);
 
           map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
+          hasInitialFitted = true;
         } else {
           // DRIVER VIEW INITIAL STATE
-          ${driverLocation ? `driverMarker = L.marker([${driverLocation.latitude}, ${driverLocation.longitude}], { icon: driverIcon }).addTo(map);
-          driverMarker.bindTooltip('🚗 Your Location', { permanent: true, direction: 'top', offset: [0, -20], className: 'marker-pill' });` : ''}
+          ${driverLocation ? `driverMarker = L.marker([${driverLocation.latitude}, ${driverLocation.longitude}], { icon: createDriverIcon(${driverLocation.heading || driverLocation.bearing || 0}) }).addTo(map);
+          driverMarker.bindTooltip('🚗 Your Location', { permanent: true, direction: 'top', offset: [0, -22], className: 'marker-pill' });` : ''}
         }
 
         // Real-time update function called from React Native without reloading page
         window.updateCoordinates = function(data) {
           if (!data) return;
 
+          // Process driver position & orientation
+          var hasDriverLocation = data.driver && typeof data.driver.latitude === 'number' && typeof data.driver.longitude === 'number';
+          var dPos = null;
+
+          if (hasDriverLocation) {
+            var dLat = data.driver.latitude;
+            var dLng = data.driver.longitude;
+            dPos = [dLat, dLng];
+
+            // 1. Determine driver heading / orientation
+            if (typeof data.driver.heading === 'number' && !isNaN(data.driver.heading) && data.driver.heading > 0) {
+              currentHeading = data.driver.heading;
+            } else if (typeof data.driver.bearing === 'number' && !isNaN(data.driver.bearing) && data.driver.bearing > 0) {
+              currentHeading = data.driver.bearing;
+            } else if (prevDriverLat !== null && prevDriverLng !== null) {
+              var movedDist = computeDistanceMeters(prevDriverLat, prevDriverLng, dLat, dLng);
+              if (movedDist >= 2.5) { // Only update bearing if moved >= 2.5m to eliminate stationary GPS jitter
+                currentHeading = computeBearing(prevDriverLat, prevDriverLng, dLat, dLng);
+              }
+            }
+            prevDriverLat = dLat;
+            prevDriverLng = dLng;
+
+            if (!driverMarker) {
+              driverMarker = L.marker(dPos, { icon: createDriverIcon(currentHeading) }).addTo(map);
+              driverMarker.bindTooltip(isDriverView ? '🚗 Your Location' : '🚗 Driver', { permanent: true, direction: 'top', offset: [0, -22], className: 'marker-pill' });
+            } else {
+              driverMarker.setLatLng(dPos);
+              updateDriverHeading(currentHeading);
+            }
+          }
+
           if (isDriverView) {
             // ============================================
             // 🚕 DRIVER APP MAP VIEW LOGIC
             // ============================================
-            if (data.driver && typeof data.driver.latitude === 'number' && typeof data.driver.longitude === 'number') {
-              var dPos = [data.driver.latitude, data.driver.longitude];
-              if (!driverMarker) {
-                driverMarker = L.marker(dPos, { icon: driverIcon }).addTo(map);
-                driverMarker.bindTooltip('🚗 Your Location', { permanent: true, direction: 'top', offset: [0, -20], className: 'marker-pill' });
-              } else {
-                driverMarker.setLatLng(dPos);
-              }
-            }
-
             var hasActiveRide = data.rideStatus === 'ACCEPTED' || data.rideStatus === 'ARRIVED' || data.rideStatus === 'IN_PROGRESS';
 
             if (!hasActiveRide) {
@@ -212,8 +300,9 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               if (pickupMarker) { map.removeLayer(pickupMarker); pickupMarker = null; }
               if (dropoffMarker) { map.removeLayer(dropoffMarker); dropoffMarker = null; }
               if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
-              if (data.driver) {
-                map.setView([data.driver.latitude, data.driver.longitude], 15);
+              lastFittedRideStatus = null;
+              if (dPos) {
+                map.setView(dPos, 15);
               }
               return;
             }
@@ -233,7 +322,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
               var navRoute = (data.routeCoordinates && data.routeCoordinates.length > 1)
                 ? data.routeCoordinates
-                : (data.driver && data.pickup ? [[data.driver.latitude, data.driver.longitude], [data.pickup.latitude, data.pickup.longitude]] : []);
+                : (dPos && data.pickup ? [dPos, [data.pickup.latitude, data.pickup.longitude]] : []);
 
               if (navRoute.length > 1) {
                 if (!routeLine) {
@@ -242,7 +331,14 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                   routeLine.setLatLngs(navRoute);
                   routeLine.setStyle({ color: '#38bdf8' });
                 }
-                map.fitBounds(routeLine.getBounds(), { padding: [60, 60], maxZoom: 17 });
+
+                // Fit bounds once per status change, or follow driver smoothly
+                if (lastFittedRideStatus !== data.rideStatus) {
+                  lastFittedRideStatus = data.rideStatus;
+                  map.fitBounds(routeLine.getBounds(), { padding: [60, 60], maxZoom: 17 });
+                } else if (dPos && !map.getBounds().pad(-0.1).contains(dPos)) {
+                  map.panTo(dPos, { animate: true, duration: 0.8 });
+                }
               }
             } else if (data.rideStatus === 'IN_PROGRESS') {
               // 2. Heading to Dropoff Destination
@@ -259,7 +355,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
               var tripRoute = (data.routeCoordinates && data.routeCoordinates.length > 1)
                 ? data.routeCoordinates
-                : (data.driver && data.dropoff ? [[data.driver.latitude, data.driver.longitude], [data.dropoff.latitude, data.dropoff.longitude]] : []);
+                : (dPos && data.dropoff ? [dPos, [data.dropoff.latitude, data.dropoff.longitude]] : []);
 
               if (tripRoute.length > 1) {
                 if (!routeLine) {
@@ -268,7 +364,13 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                   routeLine.setLatLngs(tripRoute);
                   routeLine.setStyle({ color: '#38bdf8' });
                 }
-                map.fitBounds(routeLine.getBounds(), { padding: [60, 60], maxZoom: 17 });
+
+                if (lastFittedRideStatus !== data.rideStatus) {
+                  lastFittedRideStatus = data.rideStatus;
+                  map.fitBounds(routeLine.getBounds(), { padding: [60, 60], maxZoom: 17 });
+                } else if (dPos && !map.getBounds().pad(-0.1).contains(dPos)) {
+                  map.panTo(dPos, { animate: true, duration: 0.8 });
+                }
               }
             }
           } else {
@@ -292,8 +394,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               }
             }
 
-            var hasDriverLocation = data.driver && typeof data.driver.latitude === 'number' && typeof data.driver.longitude === 'number';
-
             if (data.routeCoordinates && data.routeCoordinates.length > 1) {
               var rColor = data.rideStatus === 'IN_PROGRESS' ? '#38bdf8' : '#10b981';
               if (!routeLine) {
@@ -302,10 +402,11 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                 routeLine.setLatLngs(data.routeCoordinates);
                 routeLine.setStyle({ color: rColor });
               }
-              if (!hasDriverLocation) {
+              if (!hasDriverLocation && !hasInitialFitted) {
                 map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
+                hasInitialFitted = true;
               }
-            } else if (data.pickup && data.dropoff && !hasDriverLocation) {
+            } else if (data.pickup && data.dropoff && !hasDriverLocation && !hasInitialFitted) {
               var pLine = [
                 [data.pickup.latitude, data.pickup.longitude],
                 [data.dropoff.latitude, data.dropoff.longitude]
@@ -316,51 +417,56 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                 routeLine.setLatLngs(pLine);
               }
               map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
+              hasInitialFitted = true;
             }
 
-            if (hasDriverLocation) {
-              var dLoc = [data.driver.latitude, data.driver.longitude];
-              if (!driverMarker) {
-                driverMarker = L.marker(dLoc, { icon: driverIcon }).addTo(map);
-                driverMarker.bindTooltip('🚗 Driver', { permanent: true, direction: 'top', offset: [0, -20], className: 'marker-pill' });
-              } else {
-                driverMarker.setLatLng(dLoc);
-              }
-
+            if (hasDriverLocation && dPos) {
               if (data.rideStatus === 'IN_PROGRESS') {
                 if (data.dropoff) {
                   var dropLoc = [data.dropoff.latitude, data.dropoff.longitude];
                   if (!approachingLine) {
-                    approachingLine = L.polyline([dLoc, dropLoc], {
+                    approachingLine = L.polyline([dPos, dropLoc], {
                       color: '#38bdf8',
                       weight: 4,
                       dashArray: '5, 8',
                       opacity: 0.95
                     }).addTo(map);
                   } else {
-                    approachingLine.setLatLngs([dLoc, dropLoc]);
+                    approachingLine.setLatLngs([dPos, dropLoc]);
                     approachingLine.setStyle({ color: '#38bdf8' });
                   }
                   if (routeLine) {
                     routeLine.setStyle({ color: '#38bdf8' });
                   }
-                  var inRideBounds = L.latLngBounds([dLoc, dropLoc]);
-                  map.fitBounds(inRideBounds, { padding: [60, 60], maxZoom: 16 });
+
+                  if (lastFittedRideStatus !== data.rideStatus) {
+                    lastFittedRideStatus = data.rideStatus;
+                    var inRideBounds = L.latLngBounds([dPos, dropLoc]);
+                    map.fitBounds(inRideBounds, { padding: [60, 60], maxZoom: 16 });
+                  } else if (!map.getBounds().contains(dPos)) {
+                    map.panTo(dPos, { animate: true, duration: 0.8 });
+                  }
                 }
               } else if (data.pickup) {
                 var pLoc = [data.pickup.latitude, data.pickup.longitude];
                 if (!approachingLine) {
-                  approachingLine = L.polyline([dLoc, pLoc], {
+                  approachingLine = L.polyline([dPos, pLoc], {
                     color: '#38bdf8',
                     weight: 3.5,
                     dashArray: '4, 6',
                     opacity: 0.95
                   }).addTo(map);
                 } else {
-                  approachingLine.setLatLngs([dLoc, pLoc]);
+                  approachingLine.setLatLngs([dPos, pLoc]);
                 }
-                var approachBounds = L.latLngBounds([dLoc, pLoc]);
-                map.fitBounds(approachBounds, { padding: [60, 60], maxZoom: 16 });
+
+                if (lastFittedRideStatus !== data.rideStatus) {
+                  lastFittedRideStatus = data.rideStatus;
+                  var approachBounds = L.latLngBounds([dPos, pLoc]);
+                  map.fitBounds(approachBounds, { padding: [60, 60], maxZoom: 16 });
+                } else if (!map.getBounds().contains(dPos)) {
+                  map.panTo(dPos, { animate: true, duration: 0.8 });
+                }
               }
             } else {
               if (driverMarker) {

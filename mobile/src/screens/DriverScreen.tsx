@@ -79,7 +79,7 @@ export const DriverScreen: React.FC = () => {
   const locationSubRef = useRef<Location.LocationSubscription | null>(null);
 
   // Driver GPS Location & Navigation State
-  const [driverCoords, setDriverCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [driverCoords, setDriverCoords] = useState<{ latitude: number; longitude: number; heading?: number; bearing?: number } | null>(null);
   const [navRoute, setNavRoute] = useState<RouteDetails | null>(null);
   const [isRefreshingGps, setIsRefreshingGps] = useState(false);
 
@@ -168,7 +168,7 @@ export const DriverScreen: React.FC = () => {
 
   // Helper to persist physical GPS location in state, database, and WebSocket broker
   const syncDriverLocation = (lat: number, lng: number, heading = 0, speed = 0) => {
-    setDriverCoords({ latitude: lat, longitude: lng });
+    setDriverCoords({ latitude: lat, longitude: lng, heading, bearing: heading });
 
     // 1. Persist directly in PostgreSQL DB so dispatcher and rideService know real driver coordinates (e.g. BTM)
     driverApi.updateLocation(lat, lng).catch((err) => {
@@ -298,6 +298,9 @@ export const DriverScreen: React.FC = () => {
     activeRide?.pickupLng,
     activeRide?.dropoffLat,
     activeRide?.dropoffLng,
+    // Re-route dynamically when driver travels ~75 meters
+    Math.round((driverCoords?.latitude || 0) * 1500),
+    Math.round((driverCoords?.longitude || 0) * 1500),
   ]);
 
   // Open external Turn-by-Turn GPS navigation (Google Maps / Apple Maps)
